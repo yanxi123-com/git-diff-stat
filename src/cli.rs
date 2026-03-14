@@ -3,6 +3,9 @@ use clap::Parser;
 #[derive(Debug, Parser)]
 #[command(name = "git-diff-stat")]
 #[command(about = "Enhanced git diff --stat with untracked and test filtering")]
+#[command(
+    after_help = "Examples:\n  git diff-stat --commit HEAD\n  git diff-stat HEAD~1..HEAD --lang rs\n  git diff-stat --lang rs --test"
+)]
 pub struct Cli {
     #[arg(long, conflicts_with = "no_test")]
     pub test: bool,
