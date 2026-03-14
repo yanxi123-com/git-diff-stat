@@ -20,6 +20,10 @@ impl RevisionSelection {
             return Self::from_commit(commit).map_err(str::to_string);
         }
 
+        if cli.last {
+            return Ok(Self::CommitPatch("HEAD".to_string()));
+        }
+
         if cli.revisions.is_empty() {
             return Ok(Self::WorkingTree);
         }

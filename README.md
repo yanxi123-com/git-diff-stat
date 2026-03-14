@@ -45,6 +45,7 @@ Git automatically treats an executable named `git-diff-stat` as the `git diff-st
 ```bash
 git diff-stat
 git diff-stat --commit HEAD
+git diff-stat --last
 git diff-stat HEAD~1..HEAD --lang rs
 git diff-stat --lang rs --test
 ```
@@ -59,6 +60,7 @@ git diff-stat [<rev> | <rev1> <rev2> | <rev-range>] [--lang rs,js] [--test | --n
 
 - `git diff-stat`
 - `git diff-stat --commit <commit>`
+- `git diff-stat --last`
 - `git diff-stat <commit>`
 - `git diff-stat <a> <b>`
 - `git diff-stat <a>..<b>`
@@ -70,4 +72,5 @@ git diff-stat [<rev> | <rev1> <rev2> | <rev-range>] [--lang rs,js] [--test | --n
 
 - `--lang` currently uses file extensions.
 - `--test` and `--no-test` currently apply Rust-aware code-region splitting for `#[cfg(test)]` modules and test-annotated functions such as `#[test]` and `#[tokio::test]`.
+- `--last` is sugar for the patch introduced by `HEAD`, equivalent to `HEAD^!`.
 - Output is intentionally close to `git diff --stat`, but not byte-for-byte identical.
