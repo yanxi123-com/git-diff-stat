@@ -71,6 +71,6 @@ git diff-stat [<rev> | <rev1> <rev2> | <rev-range>] [--lang rs,js] [--test | --n
 ## Notes
 
 - `--lang` currently uses file extensions.
-- `--test` and `--no-test` currently apply Rust-aware code-region splitting for `#[cfg(test)]` modules and test-annotated functions such as `#[test]` and `#[tokio::test]`.
+- `--test` and `--no-test` treat Rust files under `tests/` as test files in full, and otherwise apply Rust-aware code-region splitting for `#[cfg(test)]` modules and test-annotated functions such as `#[test]` and `#[tokio::test]`.
 - `--last` is sugar for the patch introduced by `HEAD`, equivalent to `HEAD^!`.
 - Output is intentionally close to `git diff --stat`, but not byte-for-byte identical.

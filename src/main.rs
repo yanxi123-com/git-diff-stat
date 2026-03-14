@@ -3,7 +3,9 @@ use std::env;
 
 use git_diff_stat::change::{FileChange, collect_changes};
 use git_diff_stat::cli::Cli;
-use git_diff_stat::filter::{split_file_patch_for_rust_tests, split_untracked_rust_source};
+use git_diff_stat::filter::{
+    is_rust_integration_test_path, split_file_patch_for_rust_tests, split_untracked_rust_source,
+};
 use git_diff_stat::git::Git;
 use git_diff_stat::lang::filter_by_langs;
 use git_diff_stat::patch::parse_patch;
@@ -65,7 +67,13 @@ fn build_rust_test_stats(
             continue;
         }
 
-        let (added, deleted) = if change.untracked {
+        let (added, deleted) = if is_rust_integration_test_path(&change.path) {
+            if test_only {
+                (change.added, change.deleted)
+            } else {
+                (0, 0)
+            }
+        } else if change.untracked {
             let source = git.read_worktree_file(&change.path)?;
             let split = split_untracked_rust_source(&source)?;
             if test_only {

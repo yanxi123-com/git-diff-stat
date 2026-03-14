@@ -1,4 +1,4 @@
-use git_diff_stat::filter::split_file_patch_for_rust_tests;
+use git_diff_stat::filter::{is_rust_integration_test_path, split_file_patch_for_rust_tests};
 use git_diff_stat::patch::parse_patch;
 
 const OLD_SOURCE: &str = "\
@@ -48,4 +48,12 @@ fn counts_test_and_non_test_changes_separately_in_same_file() {
     assert_eq!(split.non_test_deleted, 1);
     assert_eq!(split.test_added, 1);
     assert_eq!(split.test_deleted, 1);
+}
+
+#[test]
+fn classifies_rust_integration_test_paths_by_tests_segment() {
+    assert!(is_rust_integration_test_path("tests/foo.rs"));
+    assert!(is_rust_integration_test_path("crates/app/tests/foo.rs"));
+    assert!(!is_rust_integration_test_path("src/tests_support/foo.rs"));
+    assert!(!is_rust_integration_test_path("src/lib.rs"));
 }

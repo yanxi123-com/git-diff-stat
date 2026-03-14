@@ -1,6 +1,7 @@
 use crate::change::line_count;
 use crate::patch::{FilePatch, LineKind};
 use crate::rust_tests::detect_test_regions;
+use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RustTestSplit {
@@ -8,6 +9,16 @@ pub struct RustTestSplit {
     pub test_deleted: usize,
     pub non_test_added: usize,
     pub non_test_deleted: usize,
+}
+
+pub fn is_rust_integration_test_path(path: &str) -> bool {
+    if Path::new(path).extension().and_then(|ext| ext.to_str()) != Some("rs") {
+        return false;
+    }
+
+    Path::new(path)
+        .components()
+        .any(|component| component.as_os_str() == "tests")
 }
 
 pub fn split_file_patch_for_rust_tests(
