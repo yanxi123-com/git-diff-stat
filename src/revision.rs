@@ -39,6 +39,9 @@ impl RevisionSelection {
         match self {
             Self::WorkingTree => Vec::new(),
             Self::CommitPatch(revision) => vec![format!("{revision}^!")],
+            Self::Revisions(revisions) if revisions.len() == 1 && !revisions[0].contains("..") => {
+                vec![revisions[0].clone(), "HEAD".to_string()]
+            }
             Self::Revisions(revisions) => revisions.clone(),
         }
     }

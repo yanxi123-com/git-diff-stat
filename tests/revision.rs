@@ -6,3 +6,13 @@ fn maps_commit_flag_to_single_commit_patch() {
 
     assert_eq!(selection.git_diff_args(), vec!["abc123^!".to_string()]);
 }
+
+#[test]
+fn maps_single_positional_revision_to_commit_and_head() {
+    let selection = RevisionSelection::Revisions(vec!["abc123".to_string()]);
+
+    assert_eq!(
+        selection.git_diff_args(),
+        vec!["abc123".to_string(), "HEAD".to_string()]
+    );
+}
