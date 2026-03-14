@@ -35,7 +35,21 @@ fn workflows_use_node24_ready_github_actions() {
         "release workflow should use upload-artifact@v6"
     );
     assert!(
-        release_workflow.contains("actions/download-artifact@v5"),
-        "release workflow should use download-artifact@v5"
+        release_workflow.contains("actions/download-artifact@v8"),
+        "release workflow should use a Node 24-ready download-artifact release"
+    );
+}
+
+#[test]
+fn publish_job_checks_out_repo_before_verifying_tag() {
+    let workflow = fs::read_to_string(".github/workflows/release.yml")
+        .expect("release workflow should be readable");
+    let (_, publish_section) = workflow
+        .split_once("publish:")
+        .expect("release workflow should define a publish job");
+
+    assert!(
+        publish_section.contains("actions/checkout@v5"),
+        "publish job should check out the repo before running gh release create --verify-tag"
     );
 }
