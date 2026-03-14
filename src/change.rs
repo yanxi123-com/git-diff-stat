@@ -1,6 +1,7 @@
 use std::fs;
 
 use crate::git::Git;
+use crate::revision::RevisionSelection;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileChange {
@@ -11,12 +12,7 @@ pub struct FileChange {
 }
 
 pub fn collect_working_tree_changes(git: &Git) -> Result<Vec<FileChange>, String> {
-    let mut changes = git
-        .diff_numstat(&[])?
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .map(parse_numstat_line)
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut changes = parse_numstat_output(&git.diff_numstat(&[])?)?;
 
     for path in git.untracked_files()? {
         changes.push(FileChange {
@@ -28,6 +24,16 @@ pub fn collect_working_tree_changes(git: &Git) -> Result<Vec<FileChange>, String
     }
 
     Ok(changes)
+}
+
+pub fn collect_changes(
+    git: &Git,
+    selection: &RevisionSelection,
+) -> Result<Vec<FileChange>, String> {
+    match selection {
+        RevisionSelection::WorkingTree => collect_working_tree_changes(git),
+        _ => parse_numstat_output(&git.diff_numstat(&selection.git_diff_args())?),
+    }
 }
 
 fn parse_numstat_line(line: &str) -> Result<FileChange, String> {
@@ -52,6 +58,14 @@ fn parse_numstat_line(line: &str) -> Result<FileChange, String> {
         deleted,
         untracked: false,
     })
+}
+
+fn parse_numstat_output(output: &str) -> Result<Vec<FileChange>, String> {
+    output
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(parse_numstat_line)
+        .collect()
 }
 
 pub fn line_count(contents: &str) -> usize {

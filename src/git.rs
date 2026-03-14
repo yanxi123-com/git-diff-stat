@@ -19,6 +19,10 @@ impl Git {
         self.run_git(["diff", "--numstat"], revision_args)
     }
 
+    pub fn diff_patch(&self, revision_args: &[String]) -> Result<String, String> {
+        self.run_git(["diff", "--unified=0", "--no-ext-diff"], revision_args)
+    }
+
     pub fn untracked_files(&self) -> Result<Vec<String>, String> {
         let output = self.run_git(["ls-files", "--others", "--exclude-standard"], &[])?;
         Ok(output
@@ -30,6 +34,24 @@ impl Git {
 
     pub fn file_line_count(&self, path: &str) -> Result<usize, String> {
         change::file_line_count(&self.cwd.join(path))
+    }
+
+    pub fn read_worktree_file(&self, path: &str) -> Result<String, String> {
+        std::fs::read_to_string(self.cwd.join(path))
+            .map_err(|error| format!("failed to read {path}: {error}"))
+    }
+
+    pub fn show_index_file(&self, path: &str) -> Result<String, String> {
+        self.run_git(["show"], &[format!(":{path}")])
+    }
+
+    pub fn show_file_at_revision(&self, revision: &str, path: &str) -> Result<String, String> {
+        self.run_git(["show"], &[format!("{revision}:{path}")])
+    }
+
+    pub fn merge_base(&self, left: &str, right: &str) -> Result<String, String> {
+        self.run_git(["merge-base"], &[left.to_string(), right.to_string()])
+            .map(|value| value.trim().to_string())
     }
 
     fn run_git<const N: usize>(

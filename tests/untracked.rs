@@ -40,6 +40,10 @@ fn init_repo(repo: &Path) {
 }
 
 fn run_git<const N: usize>(repo: &Path, args: [&str; N]) {
-    let status = Command::new("git").args(args).current_dir(repo).status().unwrap();
+    let status = Command::new("git")
+        .args(args)
+        .current_dir(repo)
+        .status()
+        .unwrap();
     assert!(status.success());
 }

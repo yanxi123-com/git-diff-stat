@@ -1,3 +1,4 @@
+use crate::change::line_count;
 use crate::patch::{FilePatch, LineKind};
 use crate::rust_tests::detect_test_regions;
 
@@ -45,6 +46,26 @@ pub fn split_file_patch_for_rust_tests(
                     split.non_test_deleted += 1;
                 }
             }
+        }
+    }
+
+    Ok(split)
+}
+
+pub fn split_untracked_rust_source(source: &str) -> Result<RustTestSplit, String> {
+    let regions = detect_test_regions(source)?;
+    let mut split = RustTestSplit {
+        test_added: 0,
+        test_deleted: 0,
+        non_test_added: 0,
+        non_test_deleted: 0,
+    };
+
+    for line in 1..=line_count(source) {
+        if regions.contains_line(line) {
+            split.test_added += 1;
+        } else {
+            split.non_test_added += 1;
         }
     }
 
