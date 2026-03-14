@@ -14,3 +14,28 @@ fn release_workflow_uses_supported_intel_macos_runner() {
         "release workflow should not reference the outdated macos-13 label"
     );
 }
+
+#[test]
+fn workflows_use_node24_ready_github_actions() {
+    let ci_workflow =
+        fs::read_to_string(".github/workflows/ci.yml").expect("ci workflow should be readable");
+    let release_workflow = fs::read_to_string(".github/workflows/release.yml")
+        .expect("release workflow should be readable");
+
+    assert!(
+        ci_workflow.contains("actions/checkout@v5"),
+        "ci workflow should use checkout@v5"
+    );
+    assert!(
+        release_workflow.contains("actions/checkout@v5"),
+        "release workflow should use checkout@v5"
+    );
+    assert!(
+        release_workflow.contains("actions/upload-artifact@v6"),
+        "release workflow should use upload-artifact@v6"
+    );
+    assert!(
+        release_workflow.contains("actions/download-artifact@v5"),
+        "release workflow should use download-artifact@v5"
+    );
+}
