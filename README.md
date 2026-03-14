@@ -23,6 +23,10 @@ Copy the compiled `git-diff-stat` binary into any directory on your `PATH`, for 
 cp target/release/git-diff-stat ~/.local/bin/
 ```
 
+### Install from GitHub Releases
+
+Download the archive for your platform from GitHub Releases, extract it, and place the `git-diff-stat` binary on your `PATH`.
+
 ## Git integration
 
 Git automatically treats an executable named `git-diff-stat` as the `git diff-stat` subcommand. Once the binary is on your `PATH`, you can run:
