@@ -27,6 +27,17 @@ cp target/release/git-diff-stat ~/.local/bin/
 
 Download the archive for your platform from GitHub Releases, extract it, and place the `git-diff-stat` binary on your `PATH`.
 
+## GitHub Releases
+
+Tagged releases use the `vX.Y.Z` format, for example `v0.1.0`.
+
+Release assets are published per platform, for example:
+
+- `git-diff-stat-v0.1.0-x86_64-unknown-linux-gnu.tar.gz`
+- `git-diff-stat-v0.1.0-x86_64-apple-darwin.tar.gz`
+- `git-diff-stat-v0.1.0-aarch64-apple-darwin.tar.gz`
+- `git-diff-stat-v0.1.0-x86_64-pc-windows-msvc.zip`
+
 ## Git integration
 
 Git automatically treats an executable named `git-diff-stat` as the `git diff-stat` subcommand. Once the binary is on your `PATH`, you can run:
