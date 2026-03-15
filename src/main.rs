@@ -4,7 +4,7 @@ use std::env;
 use git_diff_stat::change::{FileChange, collect_changes};
 use git_diff_stat::cli::Cli;
 use git_diff_stat::filter::{
-    is_rust_integration_test_path, split_file_patch_for_rust_tests, split_untracked_rust_source,
+    collect_rust_whole_test_paths, split_file_patch_for_rust_tests, split_untracked_rust_source,
 };
 use git_diff_stat::git::Git;
 use git_diff_stat::lang::filter_by_langs;
@@ -60,6 +60,7 @@ fn build_rust_test_stats(
         .map(|file| (file.path.clone(), file))
         .collect::<HashMap<_, _>>();
     let endpoints = selection.endpoints(git)?;
+    let whole_test_paths = build_whole_test_paths(git, endpoints.as_ref())?;
     let mut stats = Vec::new();
 
     for change in changes {
@@ -67,11 +68,19 @@ fn build_rust_test_stats(
             continue;
         }
 
-        let (added, deleted) = if is_rust_integration_test_path(&change.path) {
+        let old_is_whole_test = whole_test_paths.old.contains(&change.path);
+        let new_is_whole_test = whole_test_paths.new.contains(&change.path);
+        let (added, deleted) = if old_is_whole_test || new_is_whole_test {
             if test_only {
-                (change.added, change.deleted)
+                (
+                    if new_is_whole_test { change.added } else { 0 },
+                    if old_is_whole_test { change.deleted } else { 0 },
+                )
             } else {
-                (0, 0)
+                (
+                    if new_is_whole_test { 0 } else { change.added },
+                    if old_is_whole_test { 0 } else { change.deleted },
+                )
             }
         } else if change.untracked {
             let source = git.read_worktree_file(&change.path)?;
@@ -117,6 +126,68 @@ fn build_rust_test_stats(
     }
 
     Ok(stats)
+}
+
+struct WholeTestPaths {
+    old: std::collections::HashSet<String>,
+    new: std::collections::HashSet<String>,
+}
+
+fn build_whole_test_paths(
+    git: &Git,
+    endpoints: Option<&git_diff_stat::revision::RevisionEndpoints>,
+) -> Result<WholeTestPaths, String> {
+    let (old_sources, new_sources) = match endpoints {
+        Some(endpoints) => (
+            load_revision_rust_sources(git, &endpoints.old)?,
+            load_revision_rust_sources(git, &endpoints.new)?,
+        ),
+        None => (
+            load_index_rust_sources(git)?,
+            load_worktree_rust_sources(git)?,
+        ),
+    };
+    Ok(WholeTestPaths {
+        old: collect_rust_whole_test_paths(&old_sources)?,
+        new: collect_rust_whole_test_paths(&new_sources)?,
+    })
+}
+
+fn load_index_rust_sources(git: &Git) -> Result<Vec<(String, String)>, String> {
+    load_rust_sources(git.tracked_files()?, |path| git.show_index_file(path))
+}
+
+fn load_worktree_rust_sources(git: &Git) -> Result<Vec<(String, String)>, String> {
+    let mut paths = git.tracked_files()?;
+    paths.retain(|path| git.worktree_file_exists(path));
+    paths.extend(git.untracked_files()?);
+    load_rust_sources(paths, |path| git.read_worktree_file(path))
+}
+
+fn load_revision_rust_sources(git: &Git, revision: &str) -> Result<Vec<(String, String)>, String> {
+    load_rust_sources(git.revision_files(revision)?, |path| {
+        git.show_file_at_revision(revision, path)
+    })
+}
+
+fn load_rust_sources<F>(
+    paths: Vec<String>,
+    mut read_source: F,
+) -> Result<Vec<(String, String)>, String>
+where
+    F: FnMut(&str) -> Result<String, String>,
+{
+    let mut sources = Vec::new();
+
+    for path in paths {
+        if !path.ends_with(".rs") {
+            continue;
+        }
+
+        sources.push((path.clone(), read_source(&path)?));
+    }
+
+    Ok(sources)
 }
 
 fn parse_langs(value: Option<&str>) -> Option<Vec<&str>> {

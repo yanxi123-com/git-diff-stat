@@ -32,6 +32,24 @@ impl Git {
             .collect())
     }
 
+    pub fn tracked_files(&self) -> Result<Vec<String>, String> {
+        let output = self.run_git(["ls-files"], &[])?;
+        Ok(output
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(ToOwned::to_owned)
+            .collect())
+    }
+
+    pub fn revision_files(&self, revision: &str) -> Result<Vec<String>, String> {
+        let output = self.run_git(["ls-tree", "-r", "--name-only"], &[revision.to_string()])?;
+        Ok(output
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(ToOwned::to_owned)
+            .collect())
+    }
+
     pub fn file_line_count(&self, path: &str) -> Result<usize, String> {
         change::file_line_count(&self.cwd.join(path))
     }
@@ -39,6 +57,10 @@ impl Git {
     pub fn read_worktree_file(&self, path: &str) -> Result<String, String> {
         std::fs::read_to_string(self.cwd.join(path))
             .map_err(|error| format!("failed to read {path}: {error}"))
+    }
+
+    pub fn worktree_file_exists(&self, path: &str) -> bool {
+        self.cwd.join(path).is_file()
     }
 
     pub fn show_index_file(&self, path: &str) -> Result<String, String> {

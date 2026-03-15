@@ -113,6 +113,86 @@ fn no_test_filter_excludes_rust_integration_test_files() {
         .stdout(predicate::str::contains("0 files changed"));
 }
 
+#[test]
+fn test_filter_counts_cfg_test_path_module_files_as_test() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("src/runtime")).unwrap();
+    fs::write(
+        tempdir.path().join("src/runtime.rs"),
+        "#[cfg(test)]\n#[path = \"runtime/tests.rs\"]\nmod tests;\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("src/runtime/tests.rs"),
+        "fn helper() {\n    assert_eq!(1, 1);\n}\n",
+    )
+    .unwrap();
+    run_git(
+        tempdir.path(),
+        ["add", "src/runtime.rs", "src/runtime/tests.rs"],
+    );
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("src/runtime/tests.rs"),
+        "fn helper() {\n    assert_eq!(1, 2);\n}\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/runtime/tests.rs"]);
+    run_git(tempdir.path(), ["commit", "-m", "latest"]);
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--last", "--lang", "rs", "--test"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("src/runtime/tests.rs"))
+        .stdout(predicate::str::contains("1 insertion"))
+        .stdout(predicate::str::contains("1 deletion"));
+}
+
+#[test]
+fn no_test_filter_excludes_cfg_test_path_module_files() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("src/runtime")).unwrap();
+    fs::write(
+        tempdir.path().join("src/runtime.rs"),
+        "#[cfg(test)]\n#[path = \"runtime/tests.rs\"]\nmod tests;\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("src/runtime/tests.rs"),
+        "fn helper() {\n    assert_eq!(1, 1);\n}\n",
+    )
+    .unwrap();
+    run_git(
+        tempdir.path(),
+        ["add", "src/runtime.rs", "src/runtime/tests.rs"],
+    );
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("src/runtime/tests.rs"),
+        "fn helper() {\n    assert_eq!(1, 2);\n}\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/runtime/tests.rs"]);
+    run_git(tempdir.path(), ["commit", "-m", "latest"]);
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--last", "--lang", "rs", "--no-test"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("0 files changed"));
+}
+
 fn init_repo(repo: &Path) {
     run_git(repo, ["init"]);
     run_git(repo, ["config", "user.name", "Codex"]);

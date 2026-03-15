@@ -6,6 +6,12 @@ pub struct TestRegions {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CfgTestModuleImport {
+    pub module_name: String,
+    pub path_attribute: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct LineRange {
     start: usize,
     end: usize,
@@ -20,20 +26,31 @@ impl TestRegions {
 }
 
 pub fn detect_test_regions(source: &str) -> Result<TestRegions, String> {
+    let tree = parse_rust_source(source)?;
+    let mut regions = Vec::new();
+    collect_regions(tree.root_node(), source.as_bytes(), &mut regions)?;
+
+    Ok(TestRegions { regions })
+}
+
+pub fn detect_cfg_test_module_imports(source: &str) -> Result<Vec<CfgTestModuleImport>, String> {
+    let tree = parse_rust_source(source)?;
+    let mut imports = Vec::new();
+    collect_cfg_test_module_imports(tree.root_node(), source.as_bytes(), &mut imports)?;
+
+    Ok(imports)
+}
+
+fn parse_rust_source(source: &str) -> Result<tree_sitter::Tree, String> {
     let mut parser = Parser::new();
     let language = tree_sitter_rust::LANGUAGE.into();
     parser
         .set_language(&language)
         .map_err(|error| format!("failed to load rust grammar: {error}"))?;
 
-    let tree = parser
+    parser
         .parse(source, None)
-        .ok_or_else(|| "failed to parse rust source".to_string())?;
-
-    let mut regions = Vec::new();
-    collect_regions(tree.root_node(), source.as_bytes(), &mut regions)?;
-
-    Ok(TestRegions { regions })
+        .ok_or_else(|| "failed to parse rust source".to_string())
 }
 
 fn collect_regions(
@@ -58,7 +75,62 @@ fn collect_regions(
     Ok(())
 }
 
+fn collect_cfg_test_module_imports(
+    node: Node<'_>,
+    source: &[u8],
+    imports: &mut Vec<CfgTestModuleImport>,
+) -> Result<(), String> {
+    if node.kind() == "mod_item" {
+        if let Some(import) = cfg_test_module_import(node, source)? {
+            imports.push(import);
+        }
+    }
+
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_cfg_test_module_imports(child, source, imports)?;
+    }
+
+    Ok(())
+}
+
 fn is_test_node(node: Node<'_>, source: &[u8]) -> Result<bool, String> {
+    has_leading_attribute(node, source, |text| {
+        text.contains("cfg(test)") || text.contains("[test]") || text.contains("::test]")
+    })
+}
+
+fn cfg_test_module_import(
+    node: Node<'_>,
+    source: &[u8],
+) -> Result<Option<CfgTestModuleImport>, String> {
+    if !is_cfg_test_node(node, source)? || !is_external_module(node, source)? {
+        return Ok(None);
+    }
+
+    let Some(module_name) = extract_module_name(node, source)? else {
+        return Ok(None);
+    };
+
+    let path_attribute = leading_attribute_texts(node, source)?
+        .into_iter()
+        .find_map(|text| parse_path_attribute(&text));
+
+    Ok(Some(CfgTestModuleImport {
+        module_name,
+        path_attribute,
+    }))
+}
+
+fn is_cfg_test_node(node: Node<'_>, source: &[u8]) -> Result<bool, String> {
+    has_leading_attribute(node, source, |text| text.contains("cfg(test)"))
+}
+
+fn has_leading_attribute(
+    node: Node<'_>,
+    source: &[u8],
+    predicate: impl Fn(&str) -> bool,
+) -> Result<bool, String> {
     let mut sibling = node.prev_sibling();
     while let Some(previous) = sibling {
         if previous.kind() != "attribute_item" {
@@ -68,7 +140,7 @@ fn is_test_node(node: Node<'_>, source: &[u8]) -> Result<bool, String> {
         let text = previous
             .utf8_text(source)
             .map_err(|error| format!("invalid utf8 in attribute: {error}"))?;
-        if text.contains("cfg(test)") || text.contains("[test]") || text.contains("::test]") {
+        if predicate(text) {
             return Ok(true);
         }
 
@@ -92,4 +164,66 @@ fn find_region_start_line(node: Node<'_>) -> usize {
     }
 
     start
+}
+
+fn leading_attribute_texts(node: Node<'_>, source: &[u8]) -> Result<Vec<String>, String> {
+    let mut texts = Vec::new();
+    let mut sibling = node.prev_sibling();
+
+    while let Some(previous) = sibling {
+        if previous.kind() != "attribute_item" {
+            break;
+        }
+
+        texts.push(
+            previous
+                .utf8_text(source)
+                .map_err(|error| format!("invalid utf8 in attribute: {error}"))?
+                .to_string(),
+        );
+        sibling = previous.prev_sibling();
+    }
+
+    texts.reverse();
+    Ok(texts)
+}
+
+fn is_external_module(node: Node<'_>, source: &[u8]) -> Result<bool, String> {
+    Ok(node
+        .utf8_text(source)
+        .map_err(|error| format!("invalid utf8 in module: {error}"))?
+        .trim_end()
+        .ends_with(';'))
+}
+
+fn extract_module_name(node: Node<'_>, source: &[u8]) -> Result<Option<String>, String> {
+    if let Some(name) = node.child_by_field_name("name") {
+        return name
+            .utf8_text(source)
+            .map(|text| Some(text.to_string()))
+            .map_err(|error| format!("invalid utf8 in module name: {error}"));
+    }
+
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "identifier" {
+            return child
+                .utf8_text(source)
+                .map(|text| Some(text.to_string()))
+                .map_err(|error| format!("invalid utf8 in module name: {error}"));
+        }
+    }
+
+    Ok(None)
+}
+
+fn parse_path_attribute(attribute_text: &str) -> Option<String> {
+    if !attribute_text.contains("path") {
+        return None;
+    }
+
+    let start = attribute_text.find('"')?;
+    let rest = &attribute_text[start + 1..];
+    let end = rest.find('"')?;
+    Some(rest[..end].to_string())
 }

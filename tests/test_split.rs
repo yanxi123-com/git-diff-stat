@@ -1,4 +1,6 @@
-use git_diff_stat::filter::{is_rust_integration_test_path, split_file_patch_for_rust_tests};
+use git_diff_stat::filter::{
+    collect_rust_whole_test_paths, is_rust_integration_test_path, split_file_patch_for_rust_tests,
+};
 use git_diff_stat::patch::parse_patch;
 
 const OLD_SOURCE: &str = "\
@@ -56,4 +58,41 @@ fn classifies_rust_integration_test_paths_by_tests_segment() {
     assert!(is_rust_integration_test_path("crates/app/tests/foo.rs"));
     assert!(!is_rust_integration_test_path("src/tests_support/foo.rs"));
     assert!(!is_rust_integration_test_path("src/lib.rs"));
+}
+
+#[test]
+fn classifies_cfg_test_path_imported_module_files() {
+    let sources = vec![
+        (
+            "src/runtime.rs".to_string(),
+            "#[cfg(test)]\n#[path = \"runtime/tests.rs\"]\nmod tests;\n".to_string(),
+        ),
+        (
+            "src/runtime/tests.rs".to_string(),
+            "fn helper() {\n    assert_eq!(1, 1);\n}\n".to_string(),
+        ),
+    ];
+
+    let paths = collect_rust_whole_test_paths(&sources).unwrap();
+
+    assert!(paths.contains("src/runtime/tests.rs"));
+    assert!(!paths.contains("src/runtime.rs"));
+}
+
+#[test]
+fn classifies_cfg_test_implicit_module_files() {
+    let sources = vec![
+        (
+            "src/runtime.rs".to_string(),
+            "#[cfg(test)]\nmod tests;\n".to_string(),
+        ),
+        (
+            "src/runtime/tests.rs".to_string(),
+            "fn helper() {\n    assert_eq!(1, 1);\n}\n".to_string(),
+        ),
+    ];
+
+    let paths = collect_rust_whole_test_paths(&sources).unwrap();
+
+    assert!(paths.contains("src/runtime/tests.rs"));
 }
