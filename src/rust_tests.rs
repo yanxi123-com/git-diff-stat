@@ -80,10 +80,10 @@ fn collect_cfg_test_module_imports(
     source: &[u8],
     imports: &mut Vec<CfgTestModuleImport>,
 ) -> Result<(), String> {
-    if node.kind() == "mod_item" {
-        if let Some(import) = cfg_test_module_import(node, source)? {
-            imports.push(import);
-        }
+    if node.kind() == "mod_item"
+        && let Some(import) = cfg_test_module_import(node, source)?
+    {
+        imports.push(import);
     }
 
     let mut cursor = node.walk();

@@ -32,17 +32,12 @@ struct Cli {
     extract_ratio: f64,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, ValueEnum)]
 enum CliFormat {
     Json,
     Markdown,
+    #[default]
     Table,
-}
-
-impl Default for CliFormat {
-    fn default() -> Self {
-        Self::Table
-    }
 }
 
 fn main() {
