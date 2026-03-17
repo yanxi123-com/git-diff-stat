@@ -7,6 +7,10 @@
 - Rust test-only and non-test-only stats with `--test` and `--no-test`
 - single-commit and revision-range support
 
+This repository also ships `rust-test-audit`, a companion CLI for auditing Rust source trees
+and flagging files where inline test code has grown large enough to consider extracting into
+separate `tests.rs` modules.
+
 ## Install
 
 ### Local development build
@@ -15,12 +19,15 @@
 cargo install --path .
 ```
 
+This installs both `git-diff-stat` and `rust-test-audit`.
+
 ### Install from a release artifact
 
-Copy the compiled `git-diff-stat` binary into any directory on your `PATH`, for example:
+Copy the compiled binaries into any directory on your `PATH`, for example:
 
 ```bash
 cp target/release/git-diff-stat ~/.local/bin/
+cp target/release/rust-test-audit ~/.local/bin/
 ```
 
 ### Install from GitHub Releases
@@ -55,6 +62,28 @@ git diff-stat --lang rs --test
 ```bash
 git diff-stat [<rev> | <rev1> <rev2> | <rev-range>] [--lang rs,js] [--test | --no-test]
 ```
+
+## Rust Test Audit
+
+```bash
+rust-test-audit [--root <dir>] [--path <dir>]... [--format table|json|markdown]
+```
+
+Examples:
+
+```bash
+rust-test-audit
+rust-test-audit --format json
+rust-test-audit --root /path/to/repo --path winq-coin/src --format markdown
+```
+
+Defaults:
+
+- `--root` defaults to the current directory
+- `--path` defaults to the current directory
+
+The audit skips `tests.rs` files and Rust files under `tests/`, then reports files whose inline
+test regions cross configurable density thresholds.
 
 ### Revision forms
 

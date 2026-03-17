@@ -1,3 +1,4 @@
+pub mod audit;
 pub mod change;
 pub mod cli;
 pub mod filter;
