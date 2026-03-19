@@ -26,13 +26,33 @@ pub fn parse_patch(input: &str) -> Result<Patch, String> {
     let mut files = Vec::new();
     let mut current_path: Option<String> = None;
     let mut current_events = Vec::new();
+    let mut pending_old_path: Option<String> = None;
     let mut old_line = 0usize;
     let mut new_line = 0usize;
     let mut in_hunk = false;
 
     for line in input.lines() {
+        if let Some(header) = line.strip_prefix("diff --git a/") {
+            pending_old_path = Some(parse_diff_git_old_path(header)?.to_string());
+            continue;
+        }
+
         if let Some(path) = line.strip_prefix("+++ b/") {
             if let Some(previous_path) = current_path.replace(path.to_string()) {
+                files.push(FilePatch {
+                    path: previous_path,
+                    line_events: std::mem::take(&mut current_events),
+                });
+            }
+            in_hunk = false;
+            continue;
+        }
+
+        if line == "+++ /dev/null" {
+            let deleted_path = pending_old_path
+                .clone()
+                .ok_or_else(|| "missing deleted file path in diff header".to_string())?;
+            if let Some(previous_path) = current_path.replace(deleted_path) {
                 files.push(FilePatch {
                     path: previous_path,
                     line_events: std::mem::take(&mut current_events),
@@ -89,6 +109,13 @@ pub fn parse_patch(input: &str) -> Result<Patch, String> {
     }
 
     Ok(Patch { files })
+}
+
+fn parse_diff_git_old_path(header: &str) -> Result<&str, String> {
+    header
+        .split_once(" b/")
+        .map(|(old_path, _)| old_path)
+        .ok_or_else(|| format!("invalid diff header: diff --git a/{header}"))
 }
 
 fn parse_hunk_header(header: &str) -> Result<(usize, usize), String> {
