@@ -16,11 +16,14 @@ impl Git {
     }
 
     pub fn diff_numstat(&self, revision_args: &[String]) -> Result<String, String> {
-        self.run_git(["diff", "--numstat"], revision_args)
+        self.run_git(["diff", "--numstat", "--find-renames"], revision_args)
     }
 
     pub fn diff_patch(&self, revision_args: &[String]) -> Result<String, String> {
-        self.run_git(["diff", "--unified=0", "--no-ext-diff"], revision_args)
+        self.run_git(
+            ["diff", "--unified=0", "--no-ext-diff", "--find-renames"],
+            revision_args,
+        )
     }
 
     pub fn untracked_files(&self) -> Result<Vec<String>, String> {

@@ -193,6 +193,67 @@ fn no_test_filter_excludes_cfg_test_path_module_files() {
         .stdout(predicate::str::contains("0 files changed"));
 }
 
+#[test]
+fn no_test_filter_ignores_zero_line_deleted_rust_files() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("src")).unwrap();
+    fs::write(tempdir.path().join("src/empty.rs"), "").unwrap();
+    run_git(tempdir.path(), ["add", "src/empty.rs"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::remove_file(tempdir.path().join("src/empty.rs")).unwrap();
+    run_git(tempdir.path(), ["rm", "src/empty.rs"]);
+    run_git(tempdir.path(), ["commit", "-m", "delete empty rust file"]);
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--last", "--lang", "rs", "--no-test"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("0 files changed"));
+}
+
+#[test]
+fn no_test_filter_handles_renamed_rust_files() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("src/old")).unwrap();
+    fs::write(
+        tempdir.path().join("src/old/logging.rs"),
+        "pub fn log_level() -> &'static str {\n    \"info\"\n}\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/old/logging.rs"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::create_dir_all(tempdir.path().join("src/new")).unwrap();
+    run_git(
+        tempdir.path(),
+        ["mv", "src/old/logging.rs", "src/new/logging.rs"],
+    );
+    fs::write(
+        tempdir.path().join("src/new/logging.rs"),
+        "pub fn log_level() -> &'static str {\n    \"debug\"\n}\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/new/logging.rs"]);
+    run_git(tempdir.path(), ["commit", "-m", "rename rust file"]);
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--last", "--lang", "rs", "--no-test"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("logging.rs"))
+        .stdout(predicate::str::contains("1 insertion"))
+        .stdout(predicate::str::contains("1 deletion"));
+}
+
 fn init_repo(repo: &Path) {
     run_git(repo, ["init"]);
     run_git(repo, ["config", "user.name", "Codex"]);

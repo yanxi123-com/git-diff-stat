@@ -64,12 +64,16 @@ fn build_rust_test_stats(
     let mut stats = Vec::new();
 
     for change in changes {
-        if !change.path.ends_with(".rs") {
+        if !change.old_path.ends_with(".rs") && !change.new_path.ends_with(".rs") {
             continue;
         }
 
-        let old_is_whole_test = whole_test_paths.old.contains(&change.path);
-        let new_is_whole_test = whole_test_paths.new.contains(&change.path);
+        if change.added + change.deleted == 0 {
+            continue;
+        }
+
+        let old_is_whole_test = whole_test_paths.old.contains(&change.old_path);
+        let new_is_whole_test = whole_test_paths.new.contains(&change.new_path);
         let (added, deleted) = if old_is_whole_test || new_is_whole_test {
             if test_only {
                 (
@@ -83,7 +87,7 @@ fn build_rust_test_stats(
                 )
             }
         } else if change.untracked {
-            let source = git.read_worktree_file(&change.path)?;
+            let source = git.read_worktree_file(&change.new_path)?;
             let split = split_untracked_rust_source(&source)?;
             if test_only {
                 (split.test_added, split.test_deleted)
@@ -92,19 +96,19 @@ fn build_rust_test_stats(
             }
         } else {
             let file_patch = patch_map
-                .get(&change.path)
+                .get(&change.new_path)
                 .ok_or_else(|| format!("missing patch data for {}", change.path))?;
             let old_source = match &endpoints {
                 Some(endpoints) => git
-                    .show_file_at_revision(&endpoints.old, &change.path)
+                    .show_file_at_revision(&endpoints.old, &change.old_path)
                     .unwrap_or_default(),
-                None => git.show_index_file(&change.path).unwrap_or_default(),
+                None => git.show_index_file(&change.old_path).unwrap_or_default(),
             };
             let new_source = match &endpoints {
                 Some(endpoints) => git
-                    .show_file_at_revision(&endpoints.new, &change.path)
+                    .show_file_at_revision(&endpoints.new, &change.new_path)
                     .unwrap_or_default(),
-                None => git.read_worktree_file(&change.path).unwrap_or_default(),
+                None => git.read_worktree_file(&change.new_path).unwrap_or_default(),
             };
             let split = split_file_patch_for_rust_tests(file_patch, &old_source, &new_source)?;
             if test_only {

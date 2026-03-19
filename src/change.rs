@@ -6,6 +6,8 @@ use crate::revision::RevisionSelection;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileChange {
     pub path: String,
+    pub old_path: String,
+    pub new_path: String,
     pub added: usize,
     pub deleted: usize,
     pub untracked: bool,
@@ -16,6 +18,8 @@ pub fn collect_working_tree_changes(git: &Git) -> Result<Vec<FileChange>, String
 
     for path in git.untracked_files()? {
         changes.push(FileChange {
+            old_path: path.clone(),
+            new_path: path.clone(),
             added: git.file_line_count(&path)?,
             deleted: 0,
             path,
@@ -51,13 +55,35 @@ fn parse_numstat_line(line: &str) -> Result<FileChange, String> {
     let path = parts
         .next()
         .ok_or_else(|| format!("missing path in numstat line: {line}"))?;
+    let (old_path, new_path) = parse_numstat_paths(path);
 
     Ok(FileChange {
         path: path.to_string(),
+        old_path,
+        new_path,
         added,
         deleted,
         untracked: false,
     })
+}
+
+fn parse_numstat_paths(path: &str) -> (String, String) {
+    if let Some((prefix, rest)) = path.split_once('{') {
+        if let Some((middle, suffix)) = rest.split_once('}') {
+            if let Some((old_segment, new_segment)) = middle.split_once(" => ") {
+                return (
+                    format!("{prefix}{old_segment}{suffix}"),
+                    format!("{prefix}{new_segment}{suffix}"),
+                );
+            }
+        }
+    }
+
+    if let Some((old_path, new_path)) = path.split_once(" => ") {
+        return (old_path.to_string(), new_path.to_string());
+    }
+
+    (path.to_string(), path.to_string())
 }
 
 fn parse_numstat_output(output: &str) -> Result<Vec<FileChange>, String> {
