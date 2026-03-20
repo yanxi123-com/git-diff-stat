@@ -1,6 +1,12 @@
 use std::collections::HashSet;
 use std::path::Path;
 
+const JS_TS_FAMILY_LANGS: &[&str] = &["js", "ts", "jsx", "tsx", "cjs", "mjs"];
+
+pub fn family_langs() -> &'static [&'static str] {
+    JS_TS_FAMILY_LANGS
+}
+
 pub fn detect_language(path: &str) -> Option<&'static str> {
     match Path::new(path).extension().and_then(|ext| ext.to_str()) {
         Some("js") => Some("js"),

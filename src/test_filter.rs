@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::change::FileChange;
 use crate::cli::TestFilterMode;
 use crate::git::Git;
-use crate::lang::{detect_language, python, rust};
+use crate::lang::{detect_language, javascript, python, rust};
 use crate::patch::parse_patch;
 use crate::render::DisplayStat;
 use crate::revision::{RevisionEndpoints, RevisionSelection};
@@ -44,7 +44,9 @@ pub fn build_test_filtered_stats(
         let (added, deleted) = match language {
             "rs" => build_counts_for_rust(&context, &whole_test_paths, change)?,
             "py" => build_counts_for_python(&context, &whole_test_paths, change)?,
-            "js" | "ts" => select_counts_from_whole_file(change, false, false, context.mode),
+            "js" | "ts" | "jsx" | "tsx" | "cjs" | "mjs" => {
+                build_counts_for_javascript(&context, &whole_test_paths, change)
+            }
             _ => continue,
         };
 
@@ -93,10 +95,18 @@ fn build_whole_test_paths(
     let mut old = HashMap::new();
     old.insert("rs", rust::collect_whole_test_paths(&old_sources)?);
     old.insert("py", python::collect_whole_test_paths(&old_sources)?);
+    let old_javascript_paths = javascript::collect_whole_test_paths(&old_sources)?;
+    for language in javascript::family_langs() {
+        old.insert(*language, old_javascript_paths.clone());
+    }
 
     let mut new = HashMap::new();
     new.insert("rs", rust::collect_whole_test_paths(&new_sources)?);
     new.insert("py", python::collect_whole_test_paths(&new_sources)?);
+    let new_javascript_paths = javascript::collect_whole_test_paths(&new_sources)?;
+    for language in javascript::family_langs() {
+        new.insert(*language, new_javascript_paths.clone());
+    }
 
     Ok(WholeTestPaths { old, new })
 }
@@ -128,6 +138,23 @@ fn build_counts_for_python(
         change,
         python::split_untracked_source,
         python::split_file_patch,
+    )
+}
+
+fn build_counts_for_javascript(
+    context: &BuildContext<'_>,
+    whole_test_paths: &WholeTestPaths,
+    change: &FileChange,
+) -> (usize, usize) {
+    let Some(language) = change_language(change) else {
+        return (0, 0);
+    };
+
+    select_counts_for_whole_file_only(
+        change,
+        whole_test_paths.old.get(language),
+        whole_test_paths.new.get(language),
+        context.mode,
     )
 }
 
@@ -192,6 +219,22 @@ where
     };
     let split = split_patch(file_patch, &old_source, &new_source)?;
     Ok(select_counts_from_split(&split, context.mode))
+}
+
+fn select_counts_for_whole_file_only(
+    change: &FileChange,
+    old_whole_test_paths: Option<&HashSet<String>>,
+    new_whole_test_paths: Option<&HashSet<String>>,
+    mode: TestFilterMode,
+) -> (usize, usize) {
+    let old_is_whole_test = old_whole_test_paths
+        .map(|paths| paths.contains(&change.old_path))
+        .unwrap_or(false);
+    let new_is_whole_test = new_whole_test_paths
+        .map(|paths| paths.contains(&change.new_path))
+        .unwrap_or(false);
+
+    select_counts_from_whole_file(change, old_is_whole_test, new_is_whole_test, mode)
 }
 
 trait TestSplitCounts {

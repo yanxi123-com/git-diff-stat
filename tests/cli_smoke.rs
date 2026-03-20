@@ -551,6 +551,159 @@ fn mixed_rust_and_python_non_test_filter_handles_both_languages() {
 }
 
 #[test]
+fn default_non_test_filter_excludes_javascript_and_typescript_test_files() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("web")).unwrap();
+    fs::create_dir_all(tempdir.path().join("tests/e2e")).unwrap();
+    fs::write(
+        tempdir.path().join("web/app.tsx"),
+        "export function App() {\n    return <div>before</div>;\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("web/app.test.tsx"),
+        "test('app', () => {\n    expect(true).toBe(true);\n});\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("tests/e2e/login.ts"),
+        "test('login', async () => {\n    expect(true).toBe(true);\n});\n",
+    )
+    .unwrap();
+    run_git(
+        tempdir.path(),
+        ["add", "web/app.tsx", "web/app.test.tsx", "tests/e2e/login.ts"],
+    );
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("web/app.tsx"),
+        "export function App() {\n    return <div>after</div>;\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("web/app.test.tsx"),
+        "test('app', () => {\n    expect(false).toBe(false);\n});\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("tests/e2e/login.ts"),
+        "test('login', async () => {\n    expect(false).toBe(false);\n});\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("web/app.tsx"))
+        .stdout(predicate::str::contains("web/app.test.tsx").not())
+        .stdout(predicate::str::contains("tests/e2e/login.ts").not());
+}
+
+#[test]
+fn test_filter_includes_javascript_and_typescript_test_files() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("web")).unwrap();
+    fs::create_dir_all(tempdir.path().join("cypress/e2e")).unwrap();
+    fs::write(
+        tempdir.path().join("web/app.tsx"),
+        "export function App() {\n    return <div>before</div>;\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("web/app.spec.tsx"),
+        "test('app', () => {\n    expect(true).toBe(true);\n});\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("cypress/e2e/home.cy.js"),
+        "it('home', () => {\n    expect(true).to.eq(true);\n});\n",
+    )
+    .unwrap();
+    run_git(
+        tempdir.path(),
+        ["add", "web/app.tsx", "web/app.spec.tsx", "cypress/e2e/home.cy.js"],
+    );
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("web/app.tsx"),
+        "export function App() {\n    return <div>after</div>;\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("web/app.spec.tsx"),
+        "test('app', () => {\n    expect(false).toBe(false);\n});\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("cypress/e2e/home.cy.js"),
+        "it('home', () => {\n    expect(false).to.eq(false);\n});\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .arg("--test")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("web/app.tsx").not())
+        .stdout(predicate::str::contains("web/app.spec.tsx"))
+        .stdout(predicate::str::contains("cypress/e2e/home.cy.js"));
+}
+
+#[test]
+fn no_test_filter_includes_javascript_and_typescript_test_files() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("web")).unwrap();
+    fs::create_dir_all(tempdir.path().join("playwright")).unwrap();
+    fs::write(
+        tempdir.path().join("web/app.jsx"),
+        "export function App() {\n    return <div>before</div>;\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("playwright/auth.spec.ts"),
+        "test('auth', async () => {\n    expect(true).toBe(true);\n});\n",
+    )
+    .unwrap();
+    run_git(
+        tempdir.path(),
+        ["add", "web/app.jsx", "playwright/auth.spec.ts"],
+    );
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("web/app.jsx"),
+        "export function App() {\n    return <div>after</div>;\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("playwright/auth.spec.ts"),
+        "test('auth', async () => {\n    expect(false).toBe(false);\n});\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .arg("--no-test-filter")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("web/app.jsx"))
+        .stdout(predicate::str::contains("playwright/auth.spec.ts"));
+}
+
+#[test]
 fn test_filter_counts_rust_integration_test_files_as_test() {
     let tempdir = tempdir().unwrap();
     init_repo(tempdir.path());
