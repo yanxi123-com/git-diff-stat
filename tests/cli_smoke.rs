@@ -704,6 +704,37 @@ fn no_test_filter_includes_javascript_and_typescript_test_files() {
 }
 
 #[test]
+fn default_non_test_filter_skips_bulk_reading_frontend_sources_for_path_rules() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("web")).unwrap();
+    fs::create_dir_all(tempdir.path().join("scripts")).unwrap();
+    fs::write(
+        tempdir.path().join("web/app.tsx"),
+        "export function App() {\n    return <div>before</div>;\n}\n",
+    )
+    .unwrap();
+    fs::write(tempdir.path().join("scripts/build.mjs"), [0xff, 0xfe, 0xfd]).unwrap();
+    run_git(tempdir.path(), ["add", "web/app.tsx", "scripts/build.mjs"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("web/app.tsx"),
+        "export function App() {\n    return <div>after</div>;\n}\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("web/app.tsx"))
+        .stdout(predicate::str::contains("scripts/build.mjs").not());
+}
+
+#[test]
 fn test_filter_counts_rust_integration_test_files_as_test() {
     let tempdir = tempdir().unwrap();
     init_repo(tempdir.path());

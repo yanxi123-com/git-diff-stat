@@ -81,29 +81,45 @@ fn build_whole_test_paths(
     endpoints: Option<&RevisionEndpoints>,
     langs: &[&str],
 ) -> Result<WholeTestPaths, String> {
-    let (old_sources, new_sources) = match endpoints {
+    let (old_paths, new_paths) = match endpoints {
         Some(endpoints) => (
-            load_revision_sources(git, &endpoints.old, langs)?,
-            load_revision_sources(git, &endpoints.new, langs)?,
+            load_revision_paths(git, &endpoints.old, langs)?,
+            load_revision_paths(git, &endpoints.new, langs)?,
         ),
         None => (
-            load_index_sources(git, langs)?,
-            load_worktree_sources(git, langs)?,
+            load_index_paths(git, langs)?,
+            load_worktree_paths(git, langs)?,
         ),
     };
+    let (old_rust_sources, new_rust_sources) = if langs.contains(&"rs") {
+        match endpoints {
+            Some(endpoints) => (
+                load_revision_sources(git, &endpoints.old, &["rs"])?,
+                load_revision_sources(git, &endpoints.new, &["rs"])?,
+            ),
+            None => (
+                load_index_sources(git, &["rs"])?,
+                load_worktree_sources(git, &["rs"])?,
+            ),
+        }
+    } else {
+        (Vec::new(), Vec::new())
+    };
+    let old_path_entries = path_entries(&old_paths);
+    let new_path_entries = path_entries(&new_paths);
 
     let mut old = HashMap::new();
-    old.insert("rs", rust::collect_whole_test_paths(&old_sources)?);
-    old.insert("py", python::collect_whole_test_paths(&old_sources)?);
-    let old_javascript_paths = javascript::collect_whole_test_paths(&old_sources)?;
+    old.insert("rs", rust::collect_whole_test_paths(&old_rust_sources)?);
+    old.insert("py", python::collect_whole_test_paths(&old_path_entries)?);
+    let old_javascript_paths = javascript::collect_whole_test_paths(&old_path_entries)?;
     for language in javascript::family_langs() {
         old.insert(*language, old_javascript_paths.clone());
     }
 
     let mut new = HashMap::new();
-    new.insert("rs", rust::collect_whole_test_paths(&new_sources)?);
-    new.insert("py", python::collect_whole_test_paths(&new_sources)?);
-    let new_javascript_paths = javascript::collect_whole_test_paths(&new_sources)?;
+    new.insert("rs", rust::collect_whole_test_paths(&new_rust_sources)?);
+    new.insert("py", python::collect_whole_test_paths(&new_path_entries)?);
+    let new_javascript_paths = javascript::collect_whole_test_paths(&new_path_entries)?;
     for language in javascript::family_langs() {
         new.insert(*language, new_javascript_paths.clone());
     }
@@ -320,11 +336,22 @@ fn load_index_sources(git: &Git, langs: &[&str]) -> Result<Vec<(String, String)>
     })
 }
 
+fn load_index_paths(git: &Git, langs: &[&str]) -> Result<Vec<String>, String> {
+    Ok(filter_paths(git.tracked_files()?, langs))
+}
+
 fn load_worktree_sources(git: &Git, langs: &[&str]) -> Result<Vec<(String, String)>, String> {
     let mut paths = git.tracked_files()?;
     paths.retain(|path| git.worktree_file_exists(path));
     paths.extend(git.untracked_files()?);
     load_sources(paths, langs, |path| git.read_worktree_file(path))
+}
+
+fn load_worktree_paths(git: &Git, langs: &[&str]) -> Result<Vec<String>, String> {
+    let mut paths = git.tracked_files()?;
+    paths.retain(|path| git.worktree_file_exists(path));
+    paths.extend(git.untracked_files()?);
+    Ok(filter_paths(paths, langs))
 }
 
 fn load_revision_sources(
@@ -337,6 +364,10 @@ fn load_revision_sources(
     })
 }
 
+fn load_revision_paths(git: &Git, revision: &str, langs: &[&str]) -> Result<Vec<String>, String> {
+    Ok(filter_paths(git.revision_files(revision)?, langs))
+}
+
 fn load_sources<F>(
     paths: Vec<String>,
     langs: &[&str],
@@ -347,21 +378,30 @@ where
 {
     let mut sources = Vec::new();
 
-    for path in paths {
-        if !should_load_source(&path, langs) {
-            continue;
-        }
-
+    for path in filter_paths(paths, langs) {
         sources.push((path.clone(), read_source(&path)?));
     }
 
     Ok(sources)
 }
 
-fn should_load_source(path: &str, langs: &[&str]) -> bool {
+fn filter_paths(paths: Vec<String>, langs: &[&str]) -> Vec<String> {
+    paths.into_iter()
+        .filter(|path| should_include_path(path, langs))
+        .collect()
+}
+
+fn should_include_path(path: &str, langs: &[&str]) -> bool {
     let Some(language) = detect_language(path) else {
         return false;
     };
 
     langs.is_empty() || langs.contains(&language)
+}
+
+fn path_entries(paths: &[String]) -> Vec<(String, String)> {
+    paths.iter()
+        .cloned()
+        .map(|path| (path, String::new()))
+        .collect()
 }
