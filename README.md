@@ -4,8 +4,8 @@
 
 - untracked files included in default stats
 - language filtering with `--lang`
-- Rust-only, non-test-only stats by default, with `--test`, `--no-test`, and `--no-test-filter`
-- test-aware filtering for Rust and Python
+- non-test-only stats by default across all supported languages, with `--test`, `--no-test`, and `--no-test-filter`
+- test-aware filtering for Rust, Python, and JS/TS families
 - single-commit and revision-range support
 
 This repository also ships `rust-test-audit`, a companion CLI for auditing Rust source trees
@@ -75,22 +75,23 @@ git diff-stat --last
 git diff-stat --last --no-test-filter
 git diff-stat HEAD~1..HEAD --lang py --no-test-filter
 git diff-stat --lang py --test
+git diff-stat --lang tsx --test
 git diff-stat --test
 ```
 
 ## Usage
 
 ```bash
-git diff-stat [<rev> | <rev1> <rev2> | <rev-range>] [--lang rs,py,js] [--test | --no-test | --no-test-filter]
+git diff-stat [<rev> | <rev1> <rev2> | <rev-range>] [--lang rs,py,js,ts,jsx,tsx,cjs,mjs] [--test | --no-test | --no-test-filter]
 ```
 
 Defaults:
 
-- `--lang` defaults to `rs,py`
+- `--lang` defaults to all supported languages: `rs,py,js,ts,jsx,tsx,cjs,mjs`
 - test filtering defaults to `--no-test`
 - output always begins with a header line describing the comparison scope, languages, and test scope
 
-That means plain `git diff-stat` already reports Rust and Python non-test changes together.
+That means plain `git diff-stat` already reports non-test changes across all currently supported languages.
 
 ## Rust Test Audit
 
@@ -131,8 +132,9 @@ test regions cross configurable density thresholds.
 - `--lang` currently uses file extensions.
 - `--test` and `--no-test` treat Rust files under `tests/` and Rust files imported by `#[cfg(test)]` module declarations as whole-file test code. Other Rust files still use code-region splitting for `#[cfg(test)]` modules and test-annotated functions such as `#[test]` and `#[tokio::test]`.
 - `--test` and `--no-test` treat Python files under `tests/`, `test_*.py`, `*_test.py`, and `conftest.py` as whole-file test code. Other Python files split test regions using `def test_*` and `class Test*`.
-- `--no-test-filter` disables Rust and Python test splitting entirely and reports full-file stats for the selected languages.
-- because `--lang` defaults to `rs,py`, use `--lang rs` or `--lang py` when you want a narrower language set.
+- `--test` and `--no-test` treat JS/TS family files under `__tests__/`, `e2e/`, `cypress/`, and `playwright/`, plus files matching `*.test.*`, `*.spec.*`, and `*.cy.*`, as whole-file test code.
+- `--no-test-filter` disables Rust and Python region splitting and reports full-file stats for the selected languages.
+- `--lang` defaults to all supported languages, so use `--lang rs`, `--lang py`, or `--lang tsx` when you want a narrower language set.
 - `--last` is sugar for the patch introduced by `HEAD`, equivalent to `HEAD^!`.
-- rendered output starts with a Chinese description line such as `未提交的 rs,py 文件中，非测试代码统计如下：`.
+- rendered output starts with a Chinese description line such as `未提交的 rs,py,js,ts,jsx,tsx,cjs,mjs 文件中，非测试代码统计如下：`.
 - Output is intentionally close to `git diff --stat`, but not byte-for-byte identical.

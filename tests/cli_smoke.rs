@@ -64,6 +64,10 @@ fn help_mentions_common_examples() {
         .stdout(predicate::str::contains(
             "git diff-stat --last --no-test-filter",
         ))
+        .stdout(predicate::str::contains("git diff-stat --lang tsx --test"))
+        .stdout(predicate::str::contains(
+            "--lang all supported languages (rs,py,js,ts,jsx,tsx,cjs,mjs)",
+        ))
         .stdout(predicate::str::contains("--no-test-filter"));
 }
 
