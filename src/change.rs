@@ -68,15 +68,14 @@ fn parse_numstat_line(line: &str) -> Result<FileChange, String> {
 }
 
 fn parse_numstat_paths(path: &str) -> (String, String) {
-    if let Some((prefix, rest)) = path.split_once('{') {
-        if let Some((middle, suffix)) = rest.split_once('}') {
-            if let Some((old_segment, new_segment)) = middle.split_once(" => ") {
-                return (
-                    format!("{prefix}{old_segment}{suffix}"),
-                    format!("{prefix}{new_segment}{suffix}"),
-                );
-            }
-        }
+    if let Some((prefix, rest)) = path.split_once('{')
+        && let Some((middle, suffix)) = rest.split_once('}')
+        && let Some((old_segment, new_segment)) = middle.split_once(" => ")
+    {
+        return (
+            format!("{prefix}{old_segment}{suffix}"),
+            format!("{prefix}{new_segment}{suffix}"),
+        );
     }
 
     if let Some((old_path, new_path)) = path.split_once(" => ") {
