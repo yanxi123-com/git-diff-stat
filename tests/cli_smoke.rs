@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use predicates::prelude::PredicateBooleanExt;
 use predicates::prelude::predicate;
 use std::fs;
 use std::path::Path;
@@ -15,6 +16,37 @@ fn prints_help() {
 }
 
 #[test]
+fn working_tree_output_mentions_scope_lang_and_test_mode() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("src")).unwrap();
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "pub fn answer() -> i32 {\n    41\n}\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/lib.rs"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "pub fn answer() -> i32 {\n    42\n}\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "未提交的 rs 文件中，非测试代码统计如下：",
+        ))
+        .stdout(predicate::str::contains("src/lib.rs"));
+}
+
+#[test]
 fn help_mentions_common_examples() {
     Command::cargo_bin("git-diff-stat")
         .unwrap()
@@ -23,7 +55,10 @@ fn help_mentions_common_examples() {
         .success()
         .stdout(predicate::str::contains("git diff-stat --commit HEAD"))
         .stdout(predicate::str::contains("git diff-stat --last"))
-        .stdout(predicate::str::contains("git diff-stat --lang rs --test"));
+        .stdout(predicate::str::contains(
+            "git diff-stat --last --no-test-filter",
+        ))
+        .stdout(predicate::str::contains("--no-test-filter"));
 }
 
 #[test]
@@ -31,12 +66,83 @@ fn last_flag_reports_head_patch() {
     let tempdir = tempdir().unwrap();
     init_repo(tempdir.path());
 
-    fs::write(tempdir.path().join("tracked.txt"), "before\n").unwrap();
-    run_git(tempdir.path(), ["add", "tracked.txt"]);
+    fs::create_dir_all(tempdir.path().join("src")).unwrap();
+    fs::write(
+        tempdir.path().join("src/tracked.rs"),
+        "pub fn tracked() -> &'static str {\n    \"before\"\n}\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/tracked.rs"]);
     run_git(tempdir.path(), ["commit", "-m", "initial"]);
 
-    fs::write(tempdir.path().join("tracked.txt"), "before\nafter\n").unwrap();
-    run_git(tempdir.path(), ["add", "tracked.txt"]);
+    fs::write(
+        tempdir.path().join("src/tracked.rs"),
+        "pub fn tracked() -> &'static str {\n    \"after\"\n}\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/tracked.rs"]);
+    run_git(tempdir.path(), ["commit", "-m", "latest"]);
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--last", "--no-test-filter"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "最后一次提交的 rs 文件中，测试与非测试代码统计如下：",
+        ))
+        .stdout(predicate::str::contains("src/tracked.rs"))
+        .stdout(predicate::str::contains("1 insertion"));
+}
+
+#[test]
+fn default_filters_to_rust_non_test_changes() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("src")).unwrap();
+    fs::create_dir_all(tempdir.path().join("tests")).unwrap();
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "pub fn answer() -> i32 {\n    41\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("tests/integration.rs"),
+        "#[test]\nfn it_works() {\n    assert_eq!(1, 1);\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("web.js"),
+        "export const answer = () => 41;\n",
+    )
+    .unwrap();
+    run_git(
+        tempdir.path(),
+        ["add", "src/lib.rs", "tests/integration.rs", "web.js"],
+    );
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "pub fn answer() -> i32 {\n    42\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("tests/integration.rs"),
+        "#[test]\nfn it_works() {\n    assert_eq!(1, 2);\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("web.js"),
+        "export const answer = () => 42;\n",
+    )
+    .unwrap();
+    run_git(
+        tempdir.path(),
+        ["add", "src/lib.rs", "tests/integration.rs", "web.js"],
+    );
     run_git(tempdir.path(), ["commit", "-m", "latest"]);
 
     Command::cargo_bin("git-diff-stat")
@@ -45,8 +151,120 @@ fn last_flag_reports_head_patch() {
         .arg("--last")
         .assert()
         .success()
-        .stdout(predicate::str::contains("tracked.txt"))
-        .stdout(predicate::str::contains("1 insertion"));
+        .stdout(predicate::str::contains(
+            "最后一次提交的 rs 文件中，非测试代码统计如下：",
+        ))
+        .stdout(predicate::str::contains("src/lib.rs"))
+        .stdout(predicate::str::contains("tests/integration.rs").not())
+        .stdout(predicate::str::contains("web.js").not());
+}
+
+#[test]
+fn no_test_filter_includes_all_rust_changes_but_keeps_default_lang() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("src")).unwrap();
+    fs::create_dir_all(tempdir.path().join("tests")).unwrap();
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "pub fn answer() -> i32 {\n    41\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("tests/integration.rs"),
+        "#[test]\nfn it_works() {\n    assert_eq!(1, 1);\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("web.js"),
+        "export const answer = () => 41;\n",
+    )
+    .unwrap();
+    run_git(
+        tempdir.path(),
+        ["add", "src/lib.rs", "tests/integration.rs", "web.js"],
+    );
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "pub fn answer() -> i32 {\n    42\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("tests/integration.rs"),
+        "#[test]\nfn it_works() {\n    assert_eq!(1, 2);\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("web.js"),
+        "export const answer = () => 42;\n",
+    )
+    .unwrap();
+    run_git(
+        tempdir.path(),
+        ["add", "src/lib.rs", "tests/integration.rs", "web.js"],
+    );
+    run_git(tempdir.path(), ["commit", "-m", "latest"]);
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--last", "--no-test-filter"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "最后一次提交的 rs 文件中，测试与非测试代码统计如下：",
+        ))
+        .stdout(predicate::str::contains("src/lib.rs"))
+        .stdout(predicate::str::contains("tests/integration.rs"))
+        .stdout(predicate::str::contains("web.js").not());
+}
+
+#[test]
+fn revision_range_output_mentions_range_langs_and_test_mode() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("src")).unwrap();
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "pub fn answer() -> i32 {\n    41\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("web.js"),
+        "export const answer = () => 41;\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/lib.rs", "web.js"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "pub fn answer() -> i32 {\n    42\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("web.js"),
+        "export const answer = () => 42;\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/lib.rs", "web.js"]);
+    run_git(tempdir.path(), ["commit", "-m", "latest"]);
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["HEAD~1..HEAD", "--lang", "rs,js", "--no-test-filter"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "HEAD~1 到 HEAD 的 rs,js 文件中，测试与非测试代码统计如下：",
+        ))
+        .stdout(predicate::str::contains("src/lib.rs"))
+        .stdout(predicate::str::contains("web.js"));
 }
 
 #[test]

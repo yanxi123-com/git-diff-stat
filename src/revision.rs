@@ -60,6 +60,25 @@ impl RevisionSelection {
             Self::Revisions(revisions) => resolve_revision_endpoints(git, revisions).map(Some),
         }
     }
+
+    pub fn describe_scope(&self, git: &Git, last_flag: bool) -> Result<String, String> {
+        match self {
+            Self::WorkingTree => Ok("未提交的".to_string()),
+            Self::CommitPatch(revision) => {
+                if last_flag {
+                    Ok("最后一次提交的".to_string())
+                } else {
+                    Ok(format!("{revision} 这个提交的"))
+                }
+            }
+            Self::Revisions(_) => {
+                let endpoints = self
+                    .endpoints(git)?
+                    .ok_or_else(|| "missing revision endpoints".to_string())?;
+                Ok(format!("{} 到 {} 的", endpoints.old, endpoints.new))
+            }
+        }
+    }
 }
 
 fn resolve_revision_endpoints(

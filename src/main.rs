@@ -2,14 +2,14 @@ use std::collections::HashMap;
 use std::env;
 
 use git_diff_stat::change::{FileChange, collect_changes};
-use git_diff_stat::cli::Cli;
+use git_diff_stat::cli::{Cli, TestFilterMode};
 use git_diff_stat::filter::{
     collect_rust_whole_test_paths, split_file_patch_for_rust_tests, split_untracked_rust_source,
 };
 use git_diff_stat::git::Git;
 use git_diff_stat::lang::filter_by_langs;
 use git_diff_stat::patch::parse_patch;
-use git_diff_stat::render::{DisplayStat, render_stats};
+use git_diff_stat::render::{DisplayStat, StatsDescription, render_stats};
 use git_diff_stat::revision::RevisionSelection;
 
 fn main() {
@@ -24,25 +24,32 @@ fn run() -> Result<(), String> {
     let git = Git::new(env::current_dir().map_err(|error| format!("failed to read cwd: {error}"))?);
     let selection = RevisionSelection::from_cli(&cli)?;
     let mut changes = collect_changes(&git, &selection)?;
+    let langs = parse_langs(cli.lang.as_deref()).unwrap_or_default();
 
-    if let Some(langs) = parse_langs(cli.lang.as_deref()) {
+    if !langs.is_empty() {
         changes = filter_by_langs(&changes, &langs)?;
     }
 
-    let stats = if cli.test || cli.no_test {
-        build_rust_test_stats(&git, &selection, &changes, cli.test)?
-    } else {
-        changes
+    let stats = match cli.test_filter_mode() {
+        TestFilterMode::TestOnly => build_rust_test_stats(&git, &selection, &changes, true)?,
+        TestFilterMode::NonTestOnly => build_rust_test_stats(&git, &selection, &changes, false)?,
+        TestFilterMode::All => changes
             .into_iter()
             .map(|change| DisplayStat {
                 path: change.path,
                 added: change.added,
                 deleted: change.deleted,
             })
-            .collect()
+            .collect(),
     };
 
-    println!("{}", render_stats(&stats));
+    let description = StatsDescription {
+        comparison_scope: selection.describe_scope(&git, cli.last)?,
+        language_scope: describe_language_scope(&langs),
+        test_scope: describe_test_scope(cli.test_filter_mode()),
+    };
+
+    println!("{}", render_stats(&description, &stats));
     Ok(())
 }
 
@@ -202,4 +209,20 @@ fn parse_langs(value: Option<&str>) -> Option<Vec<&str>> {
             .filter(|value| !value.is_empty())
             .collect()
     })
+}
+
+fn describe_language_scope(langs: &[&str]) -> String {
+    if langs.is_empty() {
+        "所有文件".to_string()
+    } else {
+        format!("{} 文件", langs.join(","))
+    }
+}
+
+fn describe_test_scope(mode: TestFilterMode) -> String {
+    match mode {
+        TestFilterMode::TestOnly => "测试代码".to_string(),
+        TestFilterMode::NonTestOnly => "非测试代码".to_string(),
+        TestFilterMode::All => "测试与非测试代码".to_string(),
+    }
 }

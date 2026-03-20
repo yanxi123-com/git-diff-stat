@@ -1,6 +1,6 @@
 [package]
 name = "git-diff-stat"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2024"
 description = "Enhanced git diff --stat with untracked files, language filters, and Rust test-aware stats"
 readme = "README.md"

@@ -4,7 +4,7 @@
 
 - untracked files included in default stats
 - language filtering with `--lang`
-- Rust test-only and non-test-only stats with `--test` and `--no-test`
+- Rust-only, non-test-only stats by default, with `--test`, `--no-test`, and `--no-test-filter`
 - single-commit and revision-range support
 
 This repository also ships `rust-test-audit`, a companion CLI for auditing Rust source trees
@@ -53,15 +53,22 @@ Git automatically treats an executable named `git-diff-stat` as the `git diff-st
 git diff-stat
 git diff-stat --commit HEAD
 git diff-stat --last
-git diff-stat HEAD~1..HEAD --lang rs
-git diff-stat --lang rs --test
+git diff-stat --last --no-test-filter
+git diff-stat HEAD~1..HEAD --lang py --no-test-filter
+git diff-stat --test
 ```
 
 ## Usage
 
 ```bash
-git diff-stat [<rev> | <rev1> <rev2> | <rev-range>] [--lang rs,js] [--test | --no-test]
+git diff-stat [<rev> | <rev1> <rev2> | <rev-range>] [--lang rs,js] [--test | --no-test | --no-test-filter]
 ```
+
+Defaults:
+
+- `--lang` defaults to `rs`
+- test filtering defaults to `--no-test`
+- output always begins with a header line describing the comparison scope, languages, and test scope
 
 ## Rust Test Audit
 
@@ -101,5 +108,8 @@ test regions cross configurable density thresholds.
 
 - `--lang` currently uses file extensions.
 - `--test` and `--no-test` treat Rust files under `tests/` and Rust files imported by `#[cfg(test)]` module declarations as whole-file test code. Other Rust files still use code-region splitting for `#[cfg(test)]` modules and test-annotated functions such as `#[test]` and `#[tokio::test]`.
+- `--no-test-filter` disables Rust test splitting entirely and reports full-file stats for the selected languages.
+- because `--lang` defaults to `rs`, use `--no-test-filter --lang <langs>` when you want non-Rust output.
 - `--last` is sugar for the patch introduced by `HEAD`, equivalent to `HEAD^!`.
+- rendered output starts with a Chinese description line such as `未提交的 rs 文件中，非测试代码统计如下：`.
 - Output is intentionally close to `git diff --stat`, but not byte-for-byte identical.

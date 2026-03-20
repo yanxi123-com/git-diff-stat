@@ -5,10 +5,22 @@ pub struct DisplayStat {
     pub deleted: usize,
 }
 
-pub fn render_stats(stats: &[DisplayStat]) -> String {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StatsDescription {
+    pub comparison_scope: String,
+    pub language_scope: String,
+    pub test_scope: String,
+}
+
+pub fn render_stats(description: &StatsDescription, stats: &[DisplayStat]) -> String {
     let mut lines = Vec::new();
     let mut total_added = 0usize;
     let mut total_deleted = 0usize;
+
+    lines.push(format!(
+        "{} {}中，{}统计如下：",
+        description.comparison_scope, description.language_scope, description.test_scope
+    ));
 
     for stat in stats {
         total_added += stat.added;
