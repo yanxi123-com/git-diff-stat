@@ -5,6 +5,8 @@ pub mod filter;
 pub mod git;
 pub mod lang;
 pub mod patch;
+pub mod python_tests;
 pub mod render;
 pub mod revision;
 pub mod rust_tests;
+pub mod test_filter;

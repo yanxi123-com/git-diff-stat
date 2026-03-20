@@ -27,3 +27,30 @@ fn filters_to_requested_extensions() {
     assert_eq!(filtered.len(), 1);
     assert_eq!(filtered[0].path, "src/lib.rs");
 }
+
+#[test]
+fn filters_to_python_extension() {
+    let changes = vec![
+        FileChange {
+            path: "src/lib.rs".to_string(),
+            old_path: "src/lib.rs".to_string(),
+            new_path: "src/lib.rs".to_string(),
+            added: 3,
+            deleted: 1,
+            untracked: false,
+        },
+        FileChange {
+            path: "app/main.py".to_string(),
+            old_path: "app/main.py".to_string(),
+            new_path: "app/main.py".to_string(),
+            added: 5,
+            deleted: 0,
+            untracked: false,
+        },
+    ];
+
+    let filtered = filter_by_langs(&changes, &["py"]).unwrap();
+
+    assert_eq!(filtered.len(), 1);
+    assert_eq!(filtered[0].path, "app/main.py");
+}

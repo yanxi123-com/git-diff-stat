@@ -41,7 +41,7 @@ fn working_tree_output_mentions_scope_lang_and_test_mode() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "未提交的 rs 文件中，非测试代码统计如下：",
+            "未提交的 rs,py 文件中，非测试代码统计如下：",
         ))
         .stdout(predicate::str::contains("src/lib.rs"));
 }
@@ -90,7 +90,7 @@ fn last_flag_reports_head_patch() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "最后一次提交的 rs 文件中，测试与非测试代码统计如下：",
+            "最后一次提交的 rs,py 文件中，测试与非测试代码统计如下：",
         ))
         .stdout(predicate::str::contains("src/tracked.rs"))
         .stdout(predicate::str::contains("1 insertion"));
@@ -152,7 +152,7 @@ fn default_filters_to_rust_non_test_changes() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "最后一次提交的 rs 文件中，非测试代码统计如下：",
+            "最后一次提交的 rs,py 文件中，非测试代码统计如下：",
         ))
         .stdout(predicate::str::contains("src/lib.rs"))
         .stdout(predicate::str::contains("tests/integration.rs").not())
@@ -215,11 +215,69 @@ fn no_test_filter_includes_all_rust_changes_but_keeps_default_lang() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "最后一次提交的 rs 文件中，测试与非测试代码统计如下：",
+            "最后一次提交的 rs,py 文件中，测试与非测试代码统计如下：",
         ))
         .stdout(predicate::str::contains("src/lib.rs"))
         .stdout(predicate::str::contains("tests/integration.rs"))
         .stdout(predicate::str::contains("web.js").not());
+}
+
+#[test]
+fn default_lang_includes_rust_and_python_non_test_changes() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("src")).unwrap();
+    fs::create_dir_all(tempdir.path().join("app")).unwrap();
+    fs::create_dir_all(tempdir.path().join("tests")).unwrap();
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "pub fn answer() -> i32 {\n    41\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("app/main.py"),
+        "def answer() -> int:\n    return 41\n\n\ndef test_inline() -> None:\n    assert True\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("tests/test_app.py"),
+        "def test_external() -> None:\n    assert True\n",
+    )
+    .unwrap();
+    run_git(
+        tempdir.path(),
+        ["add", "src/lib.rs", "app/main.py", "tests/test_app.py"],
+    );
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "pub fn answer() -> i32 {\n    42\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("app/main.py"),
+        "def answer() -> int:\n    return 42\n\n\ndef test_inline() -> None:\n    assert False\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("tests/test_app.py"),
+        "def test_external() -> None:\n    assert False\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "未提交的 rs,py 文件中，非测试代码统计如下：",
+        ))
+        .stdout(predicate::str::contains("src/lib.rs"))
+        .stdout(predicate::str::contains("app/main.py"))
+        .stdout(predicate::str::contains("tests/test_app.py").not());
 }
 
 #[test]
@@ -265,6 +323,182 @@ fn revision_range_output_mentions_range_langs_and_test_mode() {
         ))
         .stdout(predicate::str::contains("src/lib.rs"))
         .stdout(predicate::str::contains("web.js"));
+}
+
+#[test]
+fn explicit_python_lang_uses_python_files() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("src")).unwrap();
+    fs::create_dir_all(tempdir.path().join("app")).unwrap();
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "pub fn answer() -> i32 {\n    41\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("app/main.py"),
+        "def answer() -> int:\n    return 41\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/lib.rs", "app/main.py"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "pub fn answer() -> i32 {\n    42\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("app/main.py"),
+        "def answer() -> int:\n    return 42\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--lang", "py", "--no-test-filter"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "未提交的 py 文件中，测试与非测试代码统计如下：",
+        ))
+        .stdout(predicate::str::contains("app/main.py"))
+        .stdout(predicate::str::contains("src/lib.rs").not());
+}
+
+#[test]
+fn python_default_non_test_filter_excludes_test_files() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("src")).unwrap();
+    fs::create_dir_all(tempdir.path().join("tests")).unwrap();
+    fs::write(
+        tempdir.path().join("src/app.py"),
+        "def answer() -> int:\n    return 41\n\n\ndef test_inline() -> None:\n    assert True\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("tests/test_app.py"),
+        "def test_external() -> None:\n    assert True\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/app.py", "tests/test_app.py"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("src/app.py"),
+        "def answer() -> int:\n    return 42\n\n\ndef test_inline() -> None:\n    assert False\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("tests/test_app.py"),
+        "def test_external() -> None:\n    assert False\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--lang", "py"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "未提交的 py 文件中，非测试代码统计如下：",
+        ))
+        .stdout(predicate::str::contains("src/app.py"))
+        .stdout(predicate::str::contains("tests/test_app.py").not());
+}
+
+#[test]
+fn python_test_filter_includes_test_files_and_regions() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("src")).unwrap();
+    fs::create_dir_all(tempdir.path().join("tests")).unwrap();
+    fs::write(
+        tempdir.path().join("src/app.py"),
+        "def answer() -> int:\n    return 41\n\n\ndef test_inline() -> None:\n    assert True\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("tests/test_app.py"),
+        "def test_external() -> None:\n    assert True\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/app.py", "tests/test_app.py"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("src/app.py"),
+        "def answer() -> int:\n    return 42\n\n\ndef test_inline() -> None:\n    assert False\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("tests/test_app.py"),
+        "def test_external() -> None:\n    assert False\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--lang", "py", "--test"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "未提交的 py 文件中，测试代码统计如下：",
+        ))
+        .stdout(predicate::str::contains("src/app.py"))
+        .stdout(predicate::str::contains("tests/test_app.py"));
+}
+
+#[test]
+fn mixed_rust_and_python_non_test_filter_handles_both_languages() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("src")).unwrap();
+    fs::create_dir_all(tempdir.path().join("app")).unwrap();
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "pub fn answer() -> i32 {\n    41\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("app/main.py"),
+        "def answer() -> int:\n    return 41\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/lib.rs", "app/main.py"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "pub fn answer() -> i32 {\n    42\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tempdir.path().join("app/main.py"),
+        "def answer() -> int:\n    return 42\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--lang", "rs,py"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "未提交的 rs,py 文件中，非测试代码统计如下：",
+        ))
+        .stdout(predicate::str::contains("src/lib.rs"))
+        .stdout(predicate::str::contains("app/main.py"));
 }
 
 #[test]
