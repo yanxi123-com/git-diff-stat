@@ -1,9 +1,8 @@
-use std::path::Path;
-
 use crate::change::FileChange;
 
-const SUPPORTED_LANGS: &[&str] = &["rs", "py", "js", "ts"];
+const SUPPORTED_LANGS: &[&str] = &["rs", "py", "js", "ts", "jsx", "tsx", "cjs", "mjs"];
 
+pub mod javascript;
 pub mod python;
 pub mod rust;
 
@@ -46,11 +45,7 @@ pub fn detect_language(path: &str) -> Option<&'static str> {
     } else if python::matches_path(path) {
         Some("py")
     } else {
-        match Path::new(path).extension().and_then(|ext| ext.to_str()) {
-            Some("js") => Some("js"),
-            Some("ts") => Some("ts"),
-            _ => None,
-        }
+        javascript::detect_language(path)
     }
 }
 
