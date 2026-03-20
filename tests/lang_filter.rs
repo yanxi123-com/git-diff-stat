@@ -130,3 +130,23 @@ fn filters_js_ts_family_extensions_individually() {
     assert_eq!(mjs.len(), 1);
     assert_eq!(mjs[0].path, "web/entry.mjs");
 }
+
+#[test]
+fn keeps_cross_language_renames_for_either_selected_language() {
+    let changes = vec![FileChange {
+        path: "tests/test_mod.py => src/lib.rs".to_string(),
+        old_path: "tests/test_mod.py".to_string(),
+        new_path: "src/lib.rs".to_string(),
+        added: 2,
+        deleted: 2,
+        untracked: false,
+    }];
+
+    let python = filter_by_langs(&changes, &["py"]).unwrap();
+    let rust = filter_by_langs(&changes, &["rs"]).unwrap();
+    let javascript = filter_by_langs(&changes, &["js"]).unwrap();
+
+    assert_eq!(python.len(), 1);
+    assert_eq!(rust.len(), 1);
+    assert!(javascript.is_empty());
+}

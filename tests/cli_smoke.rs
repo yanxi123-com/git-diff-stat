@@ -959,6 +959,44 @@ fn no_test_filter_handles_renamed_rust_files() {
         .stdout(predicate::str::contains("1 deletion"));
 }
 
+#[test]
+fn test_filter_counts_deleted_python_tests_across_language_rename() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("tests")).unwrap();
+    fs::create_dir_all(tempdir.path().join("src")).unwrap();
+    fs::write(
+        tempdir.path().join("tests/test_mod.py"),
+        "def test_old():\n    value = 1\n    value = value + 1\n    value = value + 1\n    value = value + 1\n    assert value == 4\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "tests/test_mod.py"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    run_git(tempdir.path(), ["mv", "tests/test_mod.py", "src/lib.rs"]);
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "def test_old():\n    value = 1\n    value = value + 1\n    value = value + 1\n    value = value + 2\n    assert value == 5\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/lib.rs"]);
+    run_git(
+        tempdir.path(),
+        ["commit", "-m", "rename python test to rust file"],
+    );
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--last", "--lang", "py,rs", "--test"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("test_mod.py => src/lib.rs"))
+        .stdout(predicate::str::contains("2 deletions(-)"))
+        .stdout(predicate::str::contains("0 files changed").not());
+}
+
 fn init_repo(repo: &Path) {
     run_git(repo, ["init"]);
     run_git(repo, ["config", "user.name", "Codex"]);
