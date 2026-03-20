@@ -14,9 +14,10 @@ pub fn filter_by_langs(changes: &[FileChange], langs: &[&str]) -> Result<Vec<Fil
     Ok(changes
         .iter()
         .filter(|change| {
-            detect_language(&change.path)
-                .map(|language| requested.contains(&language))
-                .unwrap_or(false)
+            detect_language(&change.old_path)
+                .into_iter()
+                .chain(detect_language(&change.new_path))
+                .any(|language| requested.contains(&language))
         })
         .cloned()
         .collect())

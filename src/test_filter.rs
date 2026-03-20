@@ -28,6 +28,7 @@ pub fn build_test_filtered_stats(
         git,
         endpoints: &endpoints,
         patch_map: &patch_map,
+        langs,
         mode,
     };
     let mut stats = Vec::new();
@@ -37,14 +38,25 @@ pub fn build_test_filtered_stats(
             continue;
         }
 
-        let Some(language) = change_language(change) else {
+        let old_language = detect_language(&change.old_path);
+        let new_language = detect_language(&change.new_path);
+        let Some(language) = new_language.or(old_language) else {
             continue;
         };
 
-        let (added, deleted) = match language {
-            "rs" => build_counts_for_rust(&context, &whole_test_paths, change)?,
-            "py" => build_counts_for_python(&context, &whole_test_paths, change)?,
-            _ => continue,
+        let (added, deleted) = match (old_language, new_language) {
+            (Some(old), Some(new)) if old != new => build_counts_for_cross_language_change(
+                &context,
+                &whole_test_paths,
+                change,
+                old,
+                new,
+            )?,
+            _ => match language {
+                "rs" => build_counts_for_rust(&context, &whole_test_paths, change)?,
+                "py" => build_counts_for_python(&context, &whole_test_paths, change)?,
+                _ => continue,
+            },
         };
 
         if added + deleted == 0 {
@@ -70,6 +82,7 @@ struct BuildContext<'a> {
     git: &'a Git,
     endpoints: &'a Option<RevisionEndpoints>,
     patch_map: &'a HashMap<String, crate::patch::FilePatch>,
+    langs: &'a [&'a str],
     mode: TestFilterMode,
 }
 
@@ -130,6 +143,30 @@ fn build_counts_for_python(
     )
 }
 
+fn build_counts_for_cross_language_change(
+    context: &BuildContext<'_>,
+    whole_test_paths: &WholeTestPaths,
+    change: &FileChange,
+    old_language: &'static str,
+    new_language: &'static str,
+) -> Result<(usize, usize), String> {
+    let (old_added, old_deleted) = build_side_counts_for_language(
+        context,
+        whole_test_paths,
+        change,
+        old_language,
+        ChangeSide::Old,
+    )?;
+    let (new_added, new_deleted) = build_side_counts_for_language(
+        context,
+        whole_test_paths,
+        change,
+        new_language,
+        ChangeSide::New,
+    )?;
+
+    Ok((old_added + new_added, old_deleted + new_deleted))
+}
 fn build_counts<Split, UntrackedFn, PatchFn>(
     context: &BuildContext<'_>,
     old_whole_test_paths: Option<&HashSet<String>>,
@@ -193,6 +230,148 @@ where
     Ok(select_counts_from_split(&split, context.mode))
 }
 
+#[derive(Clone, Copy)]
+enum ChangeSide {
+    Old,
+    New,
+}
+
+fn build_side_counts_for_language(
+    context: &BuildContext<'_>,
+    whole_test_paths: &WholeTestPaths,
+    change: &FileChange,
+    language: &'static str,
+    side: ChangeSide,
+) -> Result<(usize, usize), String> {
+    if !context.langs.contains(&language) {
+        return Ok((0, 0));
+    }
+
+    match language {
+        "rs" => build_side_counts(
+            context,
+            whole_test_paths,
+            change,
+            language,
+            side,
+            rust::split_file_patch,
+        ),
+        "py" => build_side_counts(
+            context,
+            whole_test_paths,
+            change,
+            language,
+            side,
+            python::split_file_patch,
+        ),
+        _ => Ok((0, 0)),
+    }
+}
+
+fn build_side_counts<Split, PatchFn>(
+    context: &BuildContext<'_>,
+    whole_test_paths: &WholeTestPaths,
+    change: &FileChange,
+    language: &'static str,
+    side: ChangeSide,
+    split_patch: PatchFn,
+) -> Result<(usize, usize), String>
+where
+    Split: TestSplitCounts,
+    PatchFn: Fn(&crate::patch::FilePatch, &str, &str) -> Result<Split, String>,
+{
+    let old_is_whole_test = whole_test_paths
+        .old
+        .get(language)
+        .map(|paths| paths.contains(&change.old_path))
+        .unwrap_or(false);
+    let new_is_whole_test = whole_test_paths
+        .new
+        .get(language)
+        .map(|paths| paths.contains(&change.new_path))
+        .unwrap_or(false);
+
+    if old_is_whole_test || new_is_whole_test {
+        return Ok(select_side_counts_from_whole_file(
+            change,
+            old_is_whole_test,
+            new_is_whole_test,
+            side,
+            context.mode,
+        ));
+    }
+
+    let file_patch = context
+        .patch_map
+        .get(&change.new_path)
+        .ok_or_else(|| format!("missing patch data for {}", change.path))?;
+    let old_source = match context.endpoints {
+        Some(endpoints) => context
+            .git
+            .show_file_at_revision(&endpoints.old, &change.old_path)
+            .unwrap_or_default(),
+        None => context
+            .git
+            .show_index_file(&change.old_path)
+            .unwrap_or_default(),
+    };
+    let new_source = match context.endpoints {
+        Some(endpoints) => context
+            .git
+            .show_file_at_revision(&endpoints.new, &change.new_path)
+            .unwrap_or_default(),
+        None => context
+            .git
+            .read_worktree_file(&change.new_path)
+            .unwrap_or_default(),
+    };
+    let split = match side {
+        ChangeSide::Old => split_patch(file_patch, &old_source, "")?,
+        ChangeSide::New => split_patch(file_patch, "", &new_source)?,
+    };
+
+    Ok(select_side_counts_from_split(&split, side, context.mode))
+}
+
+fn select_side_counts_from_whole_file(
+    change: &FileChange,
+    old_is_whole_test: bool,
+    new_is_whole_test: bool,
+    side: ChangeSide,
+    mode: TestFilterMode,
+) -> (usize, usize) {
+    match side {
+        ChangeSide::Old => match mode {
+            TestFilterMode::TestOnly => (0, if old_is_whole_test { change.deleted } else { 0 }),
+            TestFilterMode::NonTestOnly => (0, if old_is_whole_test { 0 } else { change.deleted }),
+            TestFilterMode::All => (0, change.deleted),
+        },
+        ChangeSide::New => match mode {
+            TestFilterMode::TestOnly => (if new_is_whole_test { change.added } else { 0 }, 0),
+            TestFilterMode::NonTestOnly => (if new_is_whole_test { 0 } else { change.added }, 0),
+            TestFilterMode::All => (change.added, 0),
+        },
+    }
+}
+
+fn select_side_counts_from_split(
+    split: &impl TestSplitCounts,
+    side: ChangeSide,
+    mode: TestFilterMode,
+) -> (usize, usize) {
+    match side {
+        ChangeSide::Old => match mode {
+            TestFilterMode::TestOnly => (0, split.test_deleted()),
+            TestFilterMode::NonTestOnly => (0, split.non_test_deleted()),
+            TestFilterMode::All => (0, split.test_deleted() + split.non_test_deleted()),
+        },
+        ChangeSide::New => match mode {
+            TestFilterMode::TestOnly => (split.test_added(), 0),
+            TestFilterMode::NonTestOnly => (split.non_test_added(), 0),
+            TestFilterMode::All => (split.test_added() + split.non_test_added(), 0),
+        },
+    }
+}
 trait TestSplitCounts {
     fn test_added(&self) -> usize;
     fn test_deleted(&self) -> usize;
@@ -264,10 +443,6 @@ fn select_counts_from_split(split: &impl TestSplitCounts, mode: TestFilterMode) 
             split.test_deleted() + split.non_test_deleted(),
         ),
     }
-}
-
-fn change_language(change: &FileChange) -> Option<&'static str> {
-    detect_language(&change.new_path).or_else(|| detect_language(&change.old_path))
 }
 
 fn load_index_sources(git: &Git, langs: &[&str]) -> Result<Vec<(String, String)>, String> {
