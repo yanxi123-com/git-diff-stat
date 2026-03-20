@@ -19,9 +19,7 @@ pub fn detect_language(path: &str) -> Option<&'static str> {
     }
 }
 
-pub fn collect_whole_test_paths(
-    sources: &[(String, String)],
-) -> Result<HashSet<String>, String> {
+pub fn collect_whole_test_paths(sources: &[(String, String)]) -> Result<HashSet<String>, String> {
     Ok(sources
         .iter()
         .map(|(path, _)| path)

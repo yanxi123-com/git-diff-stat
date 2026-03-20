@@ -386,7 +386,8 @@ where
 }
 
 fn filter_paths(paths: Vec<String>, langs: &[&str]) -> Vec<String> {
-    paths.into_iter()
+    paths
+        .into_iter()
         .filter(|path| should_include_path(path, langs))
         .collect()
 }
@@ -400,7 +401,8 @@ fn should_include_path(path: &str, langs: &[&str]) -> bool {
 }
 
 fn path_entries(paths: &[String]) -> Vec<(String, String)> {
-    paths.iter()
+    paths
+        .iter()
         .cloned()
         .map(|path| (path, String::new()))
         .collect()

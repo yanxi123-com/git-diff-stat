@@ -46,7 +46,7 @@ fn working_tree_output_mentions_scope_lang_and_test_mode() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "未提交的 rs,py,js,ts 文件中，非测试代码统计如下：",
+            "未提交的 rs,py,js,ts,jsx,tsx,cjs,mjs 文件中，非测试代码统计如下：",
         ))
         .stdout(predicate::str::contains("src/lib.rs"))
         .stdout(predicate::str::contains("web.js"));
@@ -100,7 +100,7 @@ fn last_flag_reports_head_patch() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "最后一次提交的 rs,py,js,ts 文件中，测试与非测试代码统计如下：",
+            "最后一次提交的 rs,py,js,ts,jsx,tsx,cjs,mjs 文件中，测试与非测试代码统计如下：",
         ))
         .stdout(predicate::str::contains("src/tracked.rs"))
         .stdout(predicate::str::contains("1 insertion"));
@@ -162,7 +162,7 @@ fn default_filters_to_rust_non_test_changes() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "最后一次提交的 rs,py,js,ts 文件中，非测试代码统计如下：",
+            "最后一次提交的 rs,py,js,ts,jsx,tsx,cjs,mjs 文件中，非测试代码统计如下：",
         ))
         .stdout(predicate::str::contains("src/lib.rs"))
         .stdout(predicate::str::contains("tests/integration.rs").not())
@@ -225,7 +225,7 @@ fn no_test_filter_includes_all_rust_changes_but_keeps_default_lang() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "最后一次提交的 rs,py,js,ts 文件中，测试与非测试代码统计如下：",
+            "最后一次提交的 rs,py,js,ts,jsx,tsx,cjs,mjs 文件中，测试与非测试代码统计如下：",
         ))
         .stdout(predicate::str::contains("src/lib.rs"))
         .stdout(predicate::str::contains("tests/integration.rs"))
@@ -262,7 +262,13 @@ fn default_lang_includes_rust_and_python_non_test_changes() {
     .unwrap();
     run_git(
         tempdir.path(),
-        ["add", "src/lib.rs", "app/main.py", "web.js", "tests/test_app.py"],
+        [
+            "add",
+            "src/lib.rs",
+            "app/main.py",
+            "web.js",
+            "tests/test_app.py",
+        ],
     );
     run_git(tempdir.path(), ["commit", "-m", "initial"]);
 
@@ -293,7 +299,7 @@ fn default_lang_includes_rust_and_python_non_test_changes() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "未提交的 rs,py,js,ts 文件中，非测试代码统计如下：",
+            "未提交的 rs,py,js,ts,jsx,tsx,cjs,mjs 文件中，非测试代码统计如下：",
         ))
         .stdout(predicate::str::contains("src/lib.rs"))
         .stdout(predicate::str::contains("app/main.py"))
@@ -578,7 +584,12 @@ fn default_non_test_filter_excludes_javascript_and_typescript_test_files() {
     .unwrap();
     run_git(
         tempdir.path(),
-        ["add", "web/app.tsx", "web/app.test.tsx", "tests/e2e/login.ts"],
+        [
+            "add",
+            "web/app.tsx",
+            "web/app.test.tsx",
+            "tests/e2e/login.ts",
+        ],
     );
     run_git(tempdir.path(), ["commit", "-m", "initial"]);
 
@@ -632,7 +643,12 @@ fn test_filter_includes_javascript_and_typescript_test_files() {
     .unwrap();
     run_git(
         tempdir.path(),
-        ["add", "web/app.tsx", "web/app.spec.tsx", "cypress/e2e/home.cy.js"],
+        [
+            "add",
+            "web/app.tsx",
+            "web/app.spec.tsx",
+            "cypress/e2e/home.cy.js",
+        ],
     );
     run_git(tempdir.path(), ["commit", "-m", "initial"]);
 
