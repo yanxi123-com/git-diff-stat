@@ -45,6 +45,24 @@ Release assets are published per platform, for example:
 - `git-diff-stat-v0.1.0-aarch64-apple-darwin.tar.gz`
 - `git-diff-stat-v0.1.0-x86_64-pc-windows-msvc.zip`
 
+### Release helper script
+
+This repository includes a helper script for cutting a new version tag:
+
+```bash
+./scripts/release-version.sh
+```
+
+By default it bumps the patch version, requires a clean worktree, runs the same checks as [ci.yml](./.github/workflows/ci.yml), updates `Cargo.toml` and `Cargo.lock`, then commits, tags, and pushes to `origin`.
+
+Examples:
+
+```bash
+./scripts/release-version.sh
+./scripts/release-version.sh minor
+./scripts/release-version.sh --dry-run
+```
+
 ## Git integration
 
 Git automatically treats an executable named `git-diff-stat` as the `git diff-stat` subcommand. Once the binary is on your `PATH`, you can run:
