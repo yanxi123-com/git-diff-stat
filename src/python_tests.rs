@@ -190,14 +190,30 @@ fn test_range_for_node(node: Node<'_>, source: &[u8]) -> Result<Option<LineRange
 
 fn is_test_definition(node: Node<'_>, source: &[u8]) -> Result<bool, String> {
     match node.kind() {
-        "function_definition" => Ok(extract_name(node, source)?
-            .map(|name| name.starts_with("test_"))
-            .unwrap_or(false)),
-        "class_definition" => Ok(extract_name(node, source)?
-            .map(|name| name.starts_with("Test"))
-            .unwrap_or(false)),
+        "function_definition" => Ok(is_top_level_definition(node)
+            && extract_name(node, source)?
+                .map(|name| name.starts_with("test_"))
+                .unwrap_or(false)),
+        "class_definition" => Ok(is_top_level_definition(node)
+            && extract_name(node, source)?
+                .map(|name| name.starts_with("Test"))
+                .unwrap_or(false)),
         _ => Ok(false),
     }
+}
+
+fn is_top_level_definition(node: Node<'_>) -> bool {
+    let mut parent = node.parent();
+
+    while let Some(current) = parent {
+        match current.kind() {
+            "block" | "decorated_definition" => parent = current.parent(),
+            "module" => return true,
+            _ => return false,
+        }
+    }
+
+    false
 }
 
 fn extract_name(node: Node<'_>, source: &[u8]) -> Result<Option<String>, String> {

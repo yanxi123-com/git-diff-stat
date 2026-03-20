@@ -12,6 +12,7 @@ pub fn build_test_filtered_stats(
     git: &Git,
     selection: &RevisionSelection,
     changes: &[FileChange],
+    langs: &[&str],
     mode: TestFilterMode,
 ) -> Result<Vec<DisplayStat>, String> {
     let patch_output = git.diff_patch(&selection.git_diff_args())?;
@@ -22,7 +23,7 @@ pub fn build_test_filtered_stats(
         .map(|file| (file.path.clone(), file))
         .collect::<HashMap<_, _>>();
     let endpoints = selection.endpoints(git)?;
-    let whole_test_paths = build_whole_test_paths(git, endpoints.as_ref())?;
+    let whole_test_paths = build_whole_test_paths(git, endpoints.as_ref(), langs)?;
     let context = BuildContext {
         git,
         endpoints: &endpoints,
@@ -75,13 +76,17 @@ struct BuildContext<'a> {
 fn build_whole_test_paths(
     git: &Git,
     endpoints: Option<&RevisionEndpoints>,
+    langs: &[&str],
 ) -> Result<WholeTestPaths, String> {
     let (old_sources, new_sources) = match endpoints {
         Some(endpoints) => (
-            load_revision_sources(git, &endpoints.old)?,
-            load_revision_sources(git, &endpoints.new)?,
+            load_revision_sources(git, &endpoints.old, langs)?,
+            load_revision_sources(git, &endpoints.new, langs)?,
         ),
-        None => (load_index_sources(git)?, load_worktree_sources(git)?),
+        None => (
+            load_index_sources(git, langs)?,
+            load_worktree_sources(git, langs)?,
+        ),
     };
 
     let mut old = HashMap::new();
@@ -265,31 +270,41 @@ fn change_language(change: &FileChange) -> Option<&'static str> {
     detect_language(&change.new_path).or_else(|| detect_language(&change.old_path))
 }
 
-fn load_index_sources(git: &Git) -> Result<Vec<(String, String)>, String> {
-    load_sources(git.tracked_files()?, |path| git.show_index_file(path))
+fn load_index_sources(git: &Git, langs: &[&str]) -> Result<Vec<(String, String)>, String> {
+    load_sources(git.tracked_files()?, langs, |path| {
+        git.show_index_file(path)
+    })
 }
 
-fn load_worktree_sources(git: &Git) -> Result<Vec<(String, String)>, String> {
+fn load_worktree_sources(git: &Git, langs: &[&str]) -> Result<Vec<(String, String)>, String> {
     let mut paths = git.tracked_files()?;
     paths.retain(|path| git.worktree_file_exists(path));
     paths.extend(git.untracked_files()?);
-    load_sources(paths, |path| git.read_worktree_file(path))
+    load_sources(paths, langs, |path| git.read_worktree_file(path))
 }
 
-fn load_revision_sources(git: &Git, revision: &str) -> Result<Vec<(String, String)>, String> {
-    load_sources(git.revision_files(revision)?, |path| {
+fn load_revision_sources(
+    git: &Git,
+    revision: &str,
+    langs: &[&str],
+) -> Result<Vec<(String, String)>, String> {
+    load_sources(git.revision_files(revision)?, langs, |path| {
         git.show_file_at_revision(revision, path)
     })
 }
 
-fn load_sources<F>(paths: Vec<String>, mut read_source: F) -> Result<Vec<(String, String)>, String>
+fn load_sources<F>(
+    paths: Vec<String>,
+    langs: &[&str],
+    mut read_source: F,
+) -> Result<Vec<(String, String)>, String>
 where
     F: FnMut(&str) -> Result<String, String>,
 {
     let mut sources = Vec::new();
 
     for path in paths {
-        if detect_language(&path).is_none() {
+        if !should_load_source(&path, langs) {
             continue;
         }
 
@@ -297,4 +312,12 @@ where
     }
 
     Ok(sources)
+}
+
+fn should_load_source(path: &str, langs: &[&str]) -> bool {
+    let Some(language) = detect_language(path) else {
+        return false;
+    };
+
+    langs.is_empty() || langs.contains(&language)
 }

@@ -38,6 +38,35 @@ fn identifies_python_test_regions() {
 }
 
 #[test]
+fn ignores_test_named_methods_on_non_test_classes() {
+    let source = "\
+class Service:
+    def test_connection(self):
+        return True
+
+
+class TestApi:
+    def test_fetch(self):
+        assert True
+
+
+def test_top_level():
+    assert True
+";
+
+    let regions = detect_test_regions(source).unwrap();
+
+    assert!(!regions.contains_line(1));
+    assert!(!regions.contains_line(2));
+    assert!(!regions.contains_line(3));
+    assert!(regions.contains_line(6));
+    assert!(regions.contains_line(7));
+    assert!(regions.contains_line(8));
+    assert!(regions.contains_line(11));
+    assert!(regions.contains_line(12));
+}
+
+#[test]
 fn collects_pytest_style_whole_test_paths() {
     let sources = vec![
         ("src/app.py".to_string(), String::new()),

@@ -370,6 +370,38 @@ fn explicit_python_lang_uses_python_files() {
 }
 
 #[test]
+fn explicit_python_lang_skips_loading_unselected_rust_sources() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("src")).unwrap();
+    fs::create_dir_all(tempdir.path().join("app")).unwrap();
+    fs::write(tempdir.path().join("src/lib.rs"), [0xff, 0xfe, 0xfd]).unwrap();
+    fs::write(
+        tempdir.path().join("app/main.py"),
+        "def answer() -> int:\n    return 41\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/lib.rs", "app/main.py"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("app/main.py"),
+        "def answer() -> int:\n    return 42\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--lang", "py"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("app/main.py"))
+        .stdout(predicate::str::contains("src/lib.rs").not());
+}
+
+#[test]
 fn python_default_non_test_filter_excludes_test_files() {
     let tempdir = tempdir().unwrap();
     init_repo(tempdir.path());

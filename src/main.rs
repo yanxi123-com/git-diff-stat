@@ -28,7 +28,7 @@ fn run() -> Result<(), String> {
 
     let stats = match cli.test_filter_mode() {
         TestFilterMode::TestOnly | TestFilterMode::NonTestOnly => {
-            build_test_filtered_stats(&git, &selection, &changes, cli.test_filter_mode())?
+            build_test_filtered_stats(&git, &selection, &changes, &langs, cli.test_filter_mode())?
         }
         TestFilterMode::All => changes
             .into_iter()
