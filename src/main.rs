@@ -4,7 +4,7 @@ use git_diff_stat::change::collect_changes;
 use git_diff_stat::cli::{Cli, TestFilterMode};
 use git_diff_stat::git::Git;
 use git_diff_stat::lang::{filter_by_langs, parse_langs};
-use git_diff_stat::render::{DisplayStat, StatsDescription, render_stats};
+use git_diff_stat::render::{StatsDescription, render_stats};
 use git_diff_stat::revision::RevisionSelection;
 use git_diff_stat::test_filter::build_test_filtered_stats;
 
@@ -26,19 +26,8 @@ fn run() -> Result<(), String> {
         changes = filter_by_langs(&changes, &langs)?;
     }
 
-    let stats = match cli.test_filter_mode() {
-        TestFilterMode::TestOnly | TestFilterMode::NonTestOnly => {
-            build_test_filtered_stats(&git, &selection, &changes, &langs, cli.test_filter_mode())?
-        }
-        TestFilterMode::All => changes
-            .into_iter()
-            .map(|change| DisplayStat {
-                path: change.path,
-                added: change.added,
-                deleted: change.deleted,
-            })
-            .collect(),
-    };
+    let stats =
+        build_test_filtered_stats(&git, &selection, &changes, &langs, cli.test_filter_mode())?;
 
     let description = StatsDescription {
         comparison_scope: selection.describe_scope(&git, cli.last)?,

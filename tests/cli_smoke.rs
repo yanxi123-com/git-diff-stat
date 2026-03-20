@@ -997,6 +997,85 @@ fn test_filter_counts_deleted_python_tests_across_language_rename() {
         .stdout(predicate::str::contains("0 files changed").not());
 }
 
+#[test]
+fn no_test_filter_splits_cross_language_rename_by_selected_language() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("tests")).unwrap();
+    fs::create_dir_all(tempdir.path().join("src")).unwrap();
+    fs::write(
+        tempdir.path().join("tests/test_mod.py"),
+        "def test_old():\n    value = 1\n    value = value + 1\n    value = value + 1\n    value = value + 1\n    assert value == 4\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "tests/test_mod.py"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    run_git(tempdir.path(), ["mv", "tests/test_mod.py", "src/lib.rs"]);
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "def test_old():\n    value = 1\n    value = value + 1\n    value = value + 1\n    value = value + 2\n    assert value == 5\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/lib.rs"]);
+    run_git(
+        tempdir.path(),
+        ["commit", "-m", "rename python test to rust file"],
+    );
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--last", "--lang", "py", "--no-test-filter"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("test_mod.py => src/lib.rs"))
+        .stdout(predicate::str::contains("0 insertions(+), 2 deletions(-)"));
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--last", "--lang", "rs", "--no-test-filter"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("test_mod.py => src/lib.rs"))
+        .stdout(predicate::str::contains("2 insertions(+), 0 deletions(-)"));
+}
+
+#[test]
+fn non_test_filter_splits_supported_to_unsupported_rename_by_selected_language() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::write(
+        tempdir.path().join("README.md"),
+        "pub fn answer() -> i32 {\n    41\n}\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "README.md"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::create_dir_all(tempdir.path().join("src")).unwrap();
+    run_git(tempdir.path(), ["mv", "README.md", "src/lib.rs"]);
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "pub fn answer() -> i32 {\n    42\n}\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/lib.rs"]);
+    run_git(tempdir.path(), ["commit", "-m", "rename markdown to rust"]);
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--last", "--lang", "rs", "--no-test"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("README.md => src/lib.rs"))
+        .stdout(predicate::str::contains("1 insertions(+), 0 deletions(-)"));
+}
+
 fn init_repo(repo: &Path) {
     run_git(repo, ["init"]);
     run_git(repo, ["config", "user.name", "Codex"]);

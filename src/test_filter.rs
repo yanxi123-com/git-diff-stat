@@ -45,7 +45,7 @@ pub fn build_test_filtered_stats(
         };
 
         let (added, deleted) = match (old_language, new_language) {
-            (Some(old), Some(new)) if old != new => build_counts_for_cross_language_change(
+            (old, new) if old != new => build_counts_for_mixed_language_change(
                 &context,
                 &whole_test_paths,
                 change,
@@ -187,21 +187,21 @@ fn build_counts_for_javascript(
     )
 }
 
-fn build_counts_for_cross_language_change(
+fn build_counts_for_mixed_language_change(
     context: &BuildContext<'_>,
     whole_test_paths: &WholeTestPaths,
     change: &FileChange,
-    old_language: &'static str,
-    new_language: &'static str,
+    old_language: Option<&'static str>,
+    new_language: Option<&'static str>,
 ) -> Result<(usize, usize), String> {
-    let (old_added, old_deleted) = build_side_counts_for_language(
+    let (old_added, old_deleted) = build_side_counts_for_detected_language(
         context,
         whole_test_paths,
         change,
         old_language,
         ChangeSide::Old,
     )?;
-    let (new_added, new_deleted) = build_side_counts_for_language(
+    let (new_added, new_deleted) = build_side_counts_for_detected_language(
         context,
         whole_test_paths,
         change,
@@ -210,6 +210,20 @@ fn build_counts_for_cross_language_change(
     )?;
 
     Ok((old_added + new_added, old_deleted + new_deleted))
+}
+
+fn build_side_counts_for_detected_language(
+    context: &BuildContext<'_>,
+    whole_test_paths: &WholeTestPaths,
+    change: &FileChange,
+    language: Option<&'static str>,
+    side: ChangeSide,
+) -> Result<(usize, usize), String> {
+    let Some(language) = language else {
+        return Ok((0, 0));
+    };
+
+    build_side_counts_for_language(context, whole_test_paths, change, language, side)
 }
 
 fn build_counts<Split, UntrackedFn, PatchFn>(
