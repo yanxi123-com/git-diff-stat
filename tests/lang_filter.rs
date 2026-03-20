@@ -1,5 +1,5 @@
 use git_diff_stat::change::FileChange;
-use git_diff_stat::lang::filter_by_langs;
+use git_diff_stat::lang::{filter_by_langs, parse_langs};
 
 #[test]
 fn filters_to_requested_extensions() {
@@ -53,4 +53,9 @@ fn filters_to_python_extension() {
 
     assert_eq!(filtered.len(), 1);
     assert_eq!(filtered[0].path, "app/main.py");
+}
+
+#[test]
+fn omitted_lang_defaults_to_all_supported_languages() {
+    assert_eq!(parse_langs(None), vec!["rs", "py", "js", "ts"]);
 }

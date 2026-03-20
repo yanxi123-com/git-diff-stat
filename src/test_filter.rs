@@ -44,6 +44,7 @@ pub fn build_test_filtered_stats(
         let (added, deleted) = match language {
             "rs" => build_counts_for_rust(&context, &whole_test_paths, change)?,
             "py" => build_counts_for_python(&context, &whole_test_paths, change)?,
+            "js" | "ts" => select_counts_from_whole_file(change, false, false, context.mode),
             _ => continue,
         };
 

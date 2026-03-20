@@ -2,6 +2,8 @@ use std::path::Path;
 
 use crate::change::FileChange;
 
+const SUPPORTED_LANGS: &[&str] = &["rs", "py", "js", "ts"];
+
 pub mod python;
 pub mod rust;
 
@@ -31,7 +33,11 @@ pub fn parse_langs(value: Option<&str>) -> Vec<&str> {
                 .filter(|value| !value.is_empty())
                 .collect()
         })
-        .unwrap_or_default()
+        .unwrap_or_else(|| supported_langs().to_vec())
+}
+
+pub fn supported_langs() -> &'static [&'static str] {
+    SUPPORTED_LANGS
 }
 
 pub fn detect_language(path: &str) -> Option<&'static str> {

@@ -11,7 +11,7 @@ pub enum TestFilterMode {
 #[command(name = "git-diff-stat")]
 #[command(about = "Enhanced git diff --stat with untracked and test filtering")]
 #[command(
-    after_help = "Examples:\n  git diff-stat\n  git diff-stat --commit HEAD\n  git diff-stat --last\n  git diff-stat --last --no-test-filter\n  git diff-stat HEAD~1..HEAD --lang py --no-test-filter\n  git diff-stat --lang py --test\n  git diff-stat --test\n\nDefaults:\n  --lang rs,py\n  test filter: --no-test"
+    after_help = "Examples:\n  git diff-stat\n  git diff-stat --commit HEAD\n  git diff-stat --last\n  git diff-stat --last --no-test-filter\n  git diff-stat HEAD~1..HEAD --lang py --no-test-filter\n  git diff-stat --lang py --test\n  git diff-stat --test\n\nDefaults:\n  --lang rs,py,js,ts\n  test filter: --no-test"
 )]
 pub struct Cli {
     #[arg(long, conflicts_with_all = ["no_test", "no_test_filter"])]
@@ -29,7 +29,7 @@ pub struct Cli {
     #[arg(long, conflicts_with_all = ["commit", "revisions"])]
     pub last: bool,
 
-    #[arg(long, value_name = "LANGS", default_value = "rs,py")]
+    #[arg(long, value_name = "LANGS")]
     pub lang: Option<String>,
 
     #[arg(value_name = "REVISION")]
