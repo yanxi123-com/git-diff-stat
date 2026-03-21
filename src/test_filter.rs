@@ -15,6 +15,10 @@ pub fn build_test_filtered_stats(
     langs: &[&str],
     mode: TestFilterMode,
 ) -> Result<Vec<DisplayStat>, String> {
+    if mode == TestFilterMode::All {
+        return Ok(build_unfiltered_stats(changes, langs));
+    }
+
     let patch_output = git.diff_patch(&selection.git_diff_args())?;
     let patch = parse_patch(&patch_output)?;
     let patch_map = patch
@@ -74,6 +78,40 @@ pub fn build_test_filtered_stats(
     }
 
     Ok(stats)
+}
+
+fn build_unfiltered_stats(changes: &[FileChange], langs: &[&str]) -> Vec<DisplayStat> {
+    let mut stats = Vec::new();
+
+    for change in changes {
+        let old_language = detect_language(&change.old_path);
+        let new_language = detect_language(&change.new_path);
+        let added = selected_side_change_count(new_language, change.added, langs);
+        let deleted = selected_side_change_count(old_language, change.deleted, langs);
+
+        if added + deleted == 0 && change.added + change.deleted > 0 {
+            continue;
+        }
+
+        stats.push(DisplayStat {
+            path: change.path.clone(),
+            added,
+            deleted,
+        });
+    }
+
+    stats
+}
+
+fn selected_side_change_count(
+    language: Option<&'static str>,
+    count: usize,
+    langs: &[&str],
+) -> usize {
+    match language {
+        Some(language) if langs.is_empty() || langs.contains(&language) => count,
+        _ => 0,
+    }
 }
 
 struct WholeTestPaths {

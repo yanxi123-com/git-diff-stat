@@ -233,6 +233,37 @@ fn no_test_filter_includes_all_rust_changes_but_keeps_default_lang() {
 }
 
 #[test]
+fn no_test_filter_does_not_parse_invalid_rust_sources() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("src")).unwrap();
+    fs::write(tempdir.path().join("src/lib.rs"), [0xff, 0xfe, 0xfd]).unwrap();
+    fs::write(
+        tempdir.path().join("web.js"),
+        "export const answer = () => 41;\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/lib.rs", "web.js"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::write(
+        tempdir.path().join("web.js"),
+        "export const answer = () => 42;\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--no-test-filter"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("web.js"))
+        .stdout(predicate::str::contains("src/lib.rs").not());
+}
+
+#[test]
 fn default_lang_includes_rust_and_python_non_test_changes() {
     let tempdir = tempdir().unwrap();
     init_repo(tempdir.path());
@@ -957,6 +988,35 @@ fn no_test_filter_handles_renamed_rust_files() {
         .stdout(predicate::str::contains("logging.rs"))
         .stdout(predicate::str::contains("1 insertion"))
         .stdout(predicate::str::contains("1 deletion"));
+}
+
+#[test]
+fn no_test_filter_keeps_rename_only_entries() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("web/old")).unwrap();
+    fs::write(
+        tempdir.path().join("web/old/app.js"),
+        "export const answer = () => 41;\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "web/old/app.js"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    fs::create_dir_all(tempdir.path().join("web/new")).unwrap();
+    run_git(tempdir.path(), ["mv", "web/old/app.js", "web/new/app.js"]);
+    run_git(tempdir.path(), ["commit", "-m", "rename js file"]);
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--last", "--lang", "js", "--no-test-filter"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("web/{old => new}/app.js"))
+        .stdout(predicate::str::contains("1 files changed"))
+        .stdout(predicate::str::contains("0 insertions(+), 0 deletions(-)"));
 }
 
 #[test]
