@@ -30,11 +30,19 @@ pub fn render_stats(description: &StatsDescription, stats: &[DisplayStat]) -> St
         lines.push(format!("{} | {} {}", stat.path, changed, graph));
     }
 
+    let net_change = total_added as isize - total_deleted as isize;
+    let net_change = if net_change > 0 {
+        format!("+{net_change}")
+    } else {
+        net_change.to_string()
+    };
+
     lines.push(format!(
-        "{} files changed, {} insertions(+), {} deletions(-)",
+        "{} files changed, {} insertions(+), {} deletions(-), net change: {}",
         stats.len(),
         total_added,
-        total_deleted
+        total_deleted,
+        net_change
     ));
 
     lines.join("\n")
