@@ -1058,6 +1058,39 @@ fn test_filter_counts_deleted_python_tests_across_language_rename() {
 }
 
 #[test]
+fn test_filter_keeps_python_rename_only_entries() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("tests")).unwrap();
+    fs::write(
+        tempdir.path().join("tests/test_app.py"),
+        "def test_value() -> None:\n    assert True\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "tests/test_app.py"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    run_git(
+        tempdir.path(),
+        ["mv", "tests/test_app.py", "tests/test_math.py"],
+    );
+    run_git(tempdir.path(), ["commit", "-m", "rename python test"]);
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--last", "--lang", "py", "--test"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "tests/{test_app.py => test_math.py}",
+        ))
+        .stdout(predicate::str::contains("1 files changed"))
+        .stdout(predicate::str::contains("0 insertions(+), 0 deletions(-)"));
+}
+
+#[test]
 fn no_test_filter_splits_cross_language_rename_by_selected_language() {
     let tempdir = tempdir().unwrap();
     init_repo(tempdir.path());
@@ -1134,6 +1167,39 @@ fn non_test_filter_splits_supported_to_unsupported_rename_by_selected_language()
         .success()
         .stdout(predicate::str::contains("README.md => src/lib.rs"))
         .stdout(predicate::str::contains("1 insertions(+), 0 deletions(-)"));
+}
+
+#[test]
+fn default_non_test_filter_keeps_javascript_rename_only_entries() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("web")).unwrap();
+    fs::write(
+        tempdir.path().join("web/app.spec.tsx"),
+        "export const value = 41;\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "web/app.spec.tsx"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    run_git(
+        tempdir.path(),
+        ["mv", "web/app.spec.tsx", "web/app.test.tsx"],
+    );
+    run_git(tempdir.path(), ["commit", "-m", "rename tsx test"]);
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--last", "--lang", "tsx"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "web/{app.spec.tsx => app.test.tsx}",
+        ))
+        .stdout(predicate::str::contains("1 files changed"))
+        .stdout(predicate::str::contains("0 insertions(+), 0 deletions(-)"));
 }
 
 fn init_repo(repo: &Path) {

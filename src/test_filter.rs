@@ -38,15 +38,22 @@ pub fn build_test_filtered_stats(
     let mut stats = Vec::new();
 
     for change in changes {
-        if change.added + change.deleted == 0 {
-            continue;
-        }
-
         let old_language = detect_language(&change.old_path);
         let new_language = detect_language(&change.new_path);
         let Some(language) = new_language.or(old_language) else {
             continue;
         };
+
+        if change.added + change.deleted == 0 {
+            if change.old_path != change.new_path {
+                stats.push(DisplayStat {
+                    path: change.path.clone(),
+                    added: 0,
+                    deleted: 0,
+                });
+            }
+            continue;
+        }
 
         let (added, deleted) = match (old_language, new_language) {
             (old, new) if old != new => build_counts_for_mixed_language_change(
