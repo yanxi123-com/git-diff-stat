@@ -18,8 +18,8 @@ pub fn render_stats(description: &StatsDescription, stats: &[DisplayStat]) -> St
     let mut total_deleted = 0usize;
 
     lines.push(format!(
-        "{} {}中，{}统计如下：",
-        description.comparison_scope, description.language_scope, description.test_scope
+        "{} stats for {} {}:",
+        description.test_scope, description.language_scope, description.comparison_scope
     ));
 
     for stat in stats {

@@ -46,7 +46,7 @@ fn working_tree_output_mentions_scope_lang_and_test_mode() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "未提交的 rs,py,js,ts,jsx,tsx,cjs,mjs 文件中，非测试代码统计如下：",
+            "Non-test code stats for rs,py,js,ts,jsx,tsx,cjs,mjs files in the working tree:",
         ))
         .stdout(predicate::str::contains("src/lib.rs"))
         .stdout(predicate::str::contains("web.js"));
@@ -68,6 +68,7 @@ fn help_mentions_common_examples() {
         .stdout(predicate::str::contains(
             "--lang all supported languages (rs,py,js,ts,jsx,tsx,cjs,mjs)",
         ))
+        .stdout(predicate::str::contains("test filter: --non-test"))
         .stdout(predicate::str::contains("--no-test-filter"));
 }
 
@@ -100,7 +101,7 @@ fn last_flag_reports_head_patch() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "最后一次提交的 rs,py,js,ts,jsx,tsx,cjs,mjs 文件中，测试与非测试代码统计如下：",
+            "Test and non-test code stats for rs,py,js,ts,jsx,tsx,cjs,mjs files in the last commit:",
         ))
         .stdout(predicate::str::contains("src/tracked.rs"))
         .stdout(predicate::str::contains("1 insertion"));
@@ -162,7 +163,7 @@ fn default_filters_to_rust_non_test_changes() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "最后一次提交的 rs,py,js,ts,jsx,tsx,cjs,mjs 文件中，非测试代码统计如下：",
+            "Non-test code stats for rs,py,js,ts,jsx,tsx,cjs,mjs files in the last commit:",
         ))
         .stdout(predicate::str::contains("src/lib.rs"))
         .stdout(predicate::str::contains("tests/integration.rs").not())
@@ -225,7 +226,7 @@ fn no_test_filter_includes_all_rust_changes_but_keeps_default_lang() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "最后一次提交的 rs,py,js,ts,jsx,tsx,cjs,mjs 文件中，测试与非测试代码统计如下：",
+            "Test and non-test code stats for rs,py,js,ts,jsx,tsx,cjs,mjs files in the last commit:",
         ))
         .stdout(predicate::str::contains("src/lib.rs"))
         .stdout(predicate::str::contains("tests/integration.rs"))
@@ -330,7 +331,7 @@ fn default_lang_includes_rust_and_python_non_test_changes() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "未提交的 rs,py,js,ts,jsx,tsx,cjs,mjs 文件中，非测试代码统计如下：",
+            "Non-test code stats for rs,py,js,ts,jsx,tsx,cjs,mjs files in the working tree:",
         ))
         .stdout(predicate::str::contains("src/lib.rs"))
         .stdout(predicate::str::contains("app/main.py"))
@@ -377,7 +378,7 @@ fn revision_range_output_mentions_range_langs_and_test_mode() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "HEAD~1 到 HEAD 的 rs,js 文件中，测试与非测试代码统计如下：",
+            "Test and non-test code stats for rs,js files from HEAD~1 to HEAD:",
         ))
         .stdout(predicate::str::contains("src/lib.rs"))
         .stdout(predicate::str::contains("web.js"));
@@ -421,7 +422,7 @@ fn explicit_python_lang_uses_python_files() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "未提交的 py 文件中，测试与非测试代码统计如下：",
+            "Test and non-test code stats for py files in the working tree:",
         ))
         .stdout(predicate::str::contains("app/main.py"))
         .stdout(predicate::str::contains("src/lib.rs").not());
@@ -497,7 +498,7 @@ fn python_default_non_test_filter_excludes_test_files() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "未提交的 py 文件中，非测试代码统计如下：",
+            "Non-test code stats for py files in the working tree:",
         ))
         .stdout(predicate::str::contains("src/app.py"))
         .stdout(predicate::str::contains("tests/test_app.py").not());
@@ -541,7 +542,7 @@ fn python_test_filter_includes_test_files_and_regions() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "未提交的 py 文件中，测试代码统计如下：",
+            "Test code stats for py files in the working tree:",
         ))
         .stdout(predicate::str::contains("src/app.py"))
         .stdout(predicate::str::contains("tests/test_app.py"));
@@ -585,7 +586,7 @@ fn mixed_rust_and_python_non_test_filter_handles_both_languages() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "未提交的 rs,py 文件中，非测试代码统计如下：",
+            "Non-test code stats for rs,py files in the working tree:",
         ))
         .stdout(predicate::str::contains("src/lib.rs"))
         .stdout(predicate::str::contains("app/main.py"));
@@ -843,7 +844,7 @@ fn no_test_filter_excludes_rust_integration_test_files() {
     Command::cargo_bin("git-diff-stat")
         .unwrap()
         .current_dir(tempdir.path())
-        .args(["--last", "--lang", "rs", "--no-test"])
+        .args(["--last", "--lang", "rs", "--non-test"])
         .assert()
         .success()
         .stdout(predicate::str::contains("0 files changed"));
@@ -923,7 +924,7 @@ fn no_test_filter_excludes_cfg_test_path_module_files() {
     Command::cargo_bin("git-diff-stat")
         .unwrap()
         .current_dir(tempdir.path())
-        .args(["--last", "--lang", "rs", "--no-test"])
+        .args(["--last", "--lang", "rs", "--non-test"])
         .assert()
         .success()
         .stdout(predicate::str::contains("0 files changed"));
@@ -946,7 +947,7 @@ fn no_test_filter_ignores_zero_line_deleted_rust_files() {
     Command::cargo_bin("git-diff-stat")
         .unwrap()
         .current_dir(tempdir.path())
-        .args(["--last", "--lang", "rs", "--no-test"])
+        .args(["--last", "--lang", "rs", "--non-test"])
         .assert()
         .success()
         .stdout(predicate::str::contains("0 files changed"));
@@ -982,7 +983,7 @@ fn no_test_filter_handles_renamed_rust_files() {
     Command::cargo_bin("git-diff-stat")
         .unwrap()
         .current_dir(tempdir.path())
-        .args(["--last", "--lang", "rs", "--no-test"])
+        .args(["--last", "--lang", "rs", "--non-test"])
         .assert()
         .success()
         .stdout(predicate::str::contains("logging.rs"))
@@ -1162,7 +1163,7 @@ fn non_test_filter_splits_supported_to_unsupported_rename_by_selected_language()
     Command::cargo_bin("git-diff-stat")
         .unwrap()
         .current_dir(tempdir.path())
-        .args(["--last", "--lang", "rs", "--no-test"])
+        .args(["--last", "--lang", "rs", "--non-test"])
         .assert()
         .success()
         .stdout(predicate::str::contains("README.md => src/lib.rs"))

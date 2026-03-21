@@ -41,16 +41,16 @@ fn run() -> Result<(), String> {
 
 fn describe_language_scope(langs: &[&str]) -> String {
     if langs.is_empty() {
-        "所有文件".to_string()
+        "all files".to_string()
     } else {
-        format!("{} 文件", langs.join(","))
+        format!("{} files", langs.join(","))
     }
 }
 
 fn describe_test_scope(mode: TestFilterMode) -> String {
     match mode {
-        TestFilterMode::TestOnly => "测试代码".to_string(),
-        TestFilterMode::NonTestOnly => "非测试代码".to_string(),
-        TestFilterMode::All => "测试与非测试代码".to_string(),
+        TestFilterMode::TestOnly => "Test code".to_string(),
+        TestFilterMode::NonTestOnly => "Non-test code".to_string(),
+        TestFilterMode::All => "Test and non-test code".to_string(),
     }
 }
