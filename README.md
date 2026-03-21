@@ -1,12 +1,28 @@
 # git-diff-stat
 
-`git-diff-stat` is a Rust CLI that extends `git diff --stat` with:
+`git-diff-stat` is a Rust CLI for `git diff --stat` with one main opinion: diff stats
+are most useful when they highlight non-test code by default.
 
+- non-test-only stats by default across all supported languages, with `--test`, `--non-test`, and `--no-test-filter`
 - untracked files included in default stats
 - language filtering with `--lang`
-- non-test-only stats by default across all supported languages, with `--test`, `--non-test`, and `--no-test-filter`
 - test-aware filtering for Rust, Python, and JS/TS families
 - single-commit and revision-range support
+
+Plain `git diff-stat` already reports non-test changes across all supported languages, so you
+can see production-code churn without test noise:
+
+```bash
+git diff-stat
+git diff-stat --last
+```
+
+When you do want a different slice, switch by language, test scope, or revision range:
+
+```bash
+git diff-stat --lang py --test
+git diff-stat HEAD~1..HEAD --lang tsx --no-test-filter
+```
 
 This repository also ships `rust-test-audit`, a companion CLI for auditing Rust source trees
 and flagging files where inline test code has grown large enough to consider extracting into
