@@ -4,4 +4,7 @@ fn readme_mentions_github_release_install() {
 
     assert!(readme.contains("GitHub Releases"));
     assert!(readme.contains("v0.1.0"));
+    assert!(readme.contains("`--lang` defaults to all supported languages"));
+    assert!(readme.contains("*.test.*"));
+    assert!(readme.contains("cypress/"));
 }
