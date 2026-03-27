@@ -42,16 +42,18 @@ pub fn collect_changes(
 
 fn parse_numstat_line(line: &str) -> Result<FileChange, String> {
     let mut parts = line.splitn(3, '\t');
-    let added = parts
-        .next()
-        .ok_or_else(|| format!("missing added count in numstat line: {line}"))?
-        .parse::<usize>()
-        .map_err(|error| format!("invalid added count in numstat line: {error}"))?;
-    let deleted = parts
-        .next()
-        .ok_or_else(|| format!("missing deleted count in numstat line: {line}"))?
-        .parse::<usize>()
-        .map_err(|error| format!("invalid deleted count in numstat line: {error}"))?;
+    let added = parse_numstat_count(
+        parts
+            .next()
+            .ok_or_else(|| format!("missing added count in numstat line: {line}"))?,
+        "added",
+    )?;
+    let deleted = parse_numstat_count(
+        parts
+            .next()
+            .ok_or_else(|| format!("missing deleted count in numstat line: {line}"))?,
+        "deleted",
+    )?;
     let path = parts
         .next()
         .ok_or_else(|| format!("missing path in numstat line: {line}"))?;
@@ -65,6 +67,16 @@ fn parse_numstat_line(line: &str) -> Result<FileChange, String> {
         deleted,
         untracked: false,
     })
+}
+
+fn parse_numstat_count(value: &str, label: &str) -> Result<usize, String> {
+    if value == "-" {
+        return Ok(0);
+    }
+
+    value
+        .parse::<usize>()
+        .map_err(|error| format!("invalid {label} count in numstat line: {error}"))
 }
 
 fn parse_numstat_paths(path: &str) -> (String, String) {
@@ -105,4 +117,19 @@ pub fn file_line_count(path: &std::path::Path) -> Result<usize, String> {
     let contents = fs::read_to_string(path)
         .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
     Ok(line_count(&contents))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_numstat_output;
+
+    #[test]
+    fn treats_binary_numstat_counts_as_zero() {
+        let changes = parse_numstat_output("-\t-\tassets/logo.png\n").unwrap();
+
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].path, "assets/logo.png");
+        assert_eq!(changes[0].added, 0);
+        assert_eq!(changes[0].deleted, 0);
+    }
 }
