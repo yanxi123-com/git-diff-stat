@@ -85,8 +85,8 @@ fn parse_numstat_paths(path: &str) -> (String, String) {
         && let Some((old_segment, new_segment)) = middle.split_once(" => ")
     {
         return (
-            format!("{prefix}{old_segment}{suffix}"),
-            format!("{prefix}{new_segment}{suffix}"),
+            stitch_brace_rename_path(prefix, old_segment, suffix),
+            stitch_brace_rename_path(prefix, new_segment, suffix),
         );
     }
 
@@ -95,6 +95,14 @@ fn parse_numstat_paths(path: &str) -> (String, String) {
     }
 
     (path.to_string(), path.to_string())
+}
+
+fn stitch_brace_rename_path(prefix: &str, segment: &str, suffix: &str) -> String {
+    if segment.is_empty() && prefix.ends_with('/') && suffix.starts_with('/') {
+        return format!("{prefix}{}", suffix.trim_start_matches('/'));
+    }
+
+    format!("{prefix}{segment}{suffix}")
 }
 
 fn parse_numstat_output(output: &str) -> Result<Vec<FileChange>, String> {
@@ -131,5 +139,20 @@ mod tests {
         assert_eq!(changes[0].path, "assets/logo.png");
         assert_eq!(changes[0].added, 0);
         assert_eq!(changes[0].deleted, 0);
+    }
+
+    #[test]
+    fn expands_brace_rename_with_empty_new_segment_without_double_slash() {
+        let changes = parse_numstat_output(
+            "5\t5\tapps/api/rebirth/{cninvest/infrastructure => }/db.py\n",
+        )
+        .unwrap();
+
+        assert_eq!(changes.len(), 1);
+        assert_eq!(
+            changes[0].old_path,
+            "apps/api/rebirth/cninvest/infrastructure/db.py"
+        );
+        assert_eq!(changes[0].new_path, "apps/api/rebirth/db.py");
     }
 }

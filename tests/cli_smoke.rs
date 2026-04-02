@@ -992,6 +992,43 @@ fn no_test_filter_handles_renamed_rust_files() {
 }
 
 #[test]
+fn no_test_filter_handles_renames_that_remove_a_directory_segment() {
+    let tempdir = tempdir().unwrap();
+    init_repo(tempdir.path());
+
+    fs::create_dir_all(tempdir.path().join("src/old/nested")).unwrap();
+    fs::write(
+        tempdir.path().join("src/old/nested/lib.rs"),
+        "pub fn log_level() -> &'static str {\n    \"info\"\n}\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/old/nested/lib.rs"]);
+    run_git(tempdir.path(), ["commit", "-m", "initial"]);
+
+    run_git(
+        tempdir.path(),
+        ["mv", "src/old/nested/lib.rs", "src/lib.rs"],
+    );
+    fs::write(
+        tempdir.path().join("src/lib.rs"),
+        "pub fn log_level() -> &'static str {\n    \"debug\"\n}\n",
+    )
+    .unwrap();
+    run_git(tempdir.path(), ["add", "src/lib.rs"]);
+    run_git(tempdir.path(), ["commit", "-m", "collapse path rename"]);
+
+    Command::cargo_bin("git-diff-stat")
+        .unwrap()
+        .current_dir(tempdir.path())
+        .args(["--last", "--lang", "rs", "--non-test"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("src/{old/nested => }/lib.rs"))
+        .stdout(predicate::str::contains("1 insertion"))
+        .stdout(predicate::str::contains("1 deletion"));
+}
+
+#[test]
 fn no_test_filter_keeps_rename_only_entries() {
     let tempdir = tempdir().unwrap();
     init_repo(tempdir.path());
