@@ -28,13 +28,42 @@ die() {
   exit 1
 }
 
+format_command() {
+  local parts=()
+  local arg
+
+  for arg in "$@"; do
+    parts+=("$(printf '%q' "$arg")")
+  done
+
+  printf '%s' "${parts[*]}"
+}
+
 run() {
+  local hint=""
+  local command_text
+
+  if [[ "${1:-}" == "--hint" ]]; then
+    hint="$2"
+    shift 2
+  fi
+
+  command_text="$(format_command "$@")"
+
   if [[ "${DRY_RUN}" == "1" ]]; then
-    printf '[dry-run] %s\n' "$*"
+    printf '[dry-run] %s\n' "$command_text"
     return 0
   fi
 
-  "$@"
+  if "$@"; then
+    return 0
+  fi
+
+  printf 'error: command failed: %s\n' "$command_text" >&2
+  if [[ -n "$hint" ]]; then
+    printf 'hint: %s\n' "$hint" >&2
+  fi
+  exit 1
 }
 
 require_clean_worktree() {
@@ -125,7 +154,7 @@ main() {
   require_clean_worktree
 
   log "running CI-equivalent checks"
-  run cargo fmt --check
+  run --hint "run 'cargo fmt' and retry" cargo fmt --check
   run cargo clippy --all-targets --all-features -- -D warnings
   run cargo test -v
 

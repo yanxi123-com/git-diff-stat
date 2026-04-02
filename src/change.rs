@@ -143,10 +143,9 @@ mod tests {
 
     #[test]
     fn expands_brace_rename_with_empty_new_segment_without_double_slash() {
-        let changes = parse_numstat_output(
-            "5\t5\tapps/api/rebirth/{cninvest/infrastructure => }/db.py\n",
-        )
-        .unwrap();
+        let changes =
+            parse_numstat_output("5\t5\tapps/api/rebirth/{cninvest/infrastructure => }/db.py\n")
+                .unwrap();
 
         assert_eq!(changes.len(), 1);
         assert_eq!(
